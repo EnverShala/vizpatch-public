@@ -1,0 +1,10 @@
+# ruff-Minimalregeln fuer CI (Phase 15, CI-02). Liegt bewusst im Repo-Root und
+# nicht in agent/webui-pyproject.toml (Docker-Build-Kontext, Kunden-Images).
+# Nur echte Fehler: Syntax (E9), fehlerhafte Formate (F63), Anweisungsfehler (F7),
+# undefinierte Namen (F82). Erweiterung nur als eigene Phase/Quick-Task,
+# sonst wird der Bestand rot.
+target-version = "py313"
+extend-exclude = [".venv-ci-*", "dist", "outlook-addin", ".planning"]
+
+[lint]
+select = ["E9", "F63", "F7", "F82"]

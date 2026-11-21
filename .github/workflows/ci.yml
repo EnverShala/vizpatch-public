@@ -1,0 +1,146 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Berlin
+  LANG: C.UTF-8
+  PYTHONDONTWRITEBYTECODE: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  # Phase 16: keine *.dockerbuild-Build-Records als Actions-Artefakte (oeffentliches Repo).
+  DOCKER_BUILD_RECORD_UPLOAD: "false"
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [agent, webui]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: ${{ matrix.suite }}/pyproject.toml
+      - run: bash scripts/ci-test.sh ${{ matrix.suite }}
+        shell: bash
+
+  shell:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: webui/pyproject.toml
+      - run: bash scripts/ci-test.sh shell
+        shell: bash
+
+  guards:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: webui/pyproject.toml
+      - run: bash scripts/ci-test.sh guards
+        shell: bash
+
+  ruff:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
+      - run: bash scripts/ci-test.sh ruff
+        shell: bash
+
+  secrets:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # P16-05: Die Historie wird nur im oeffentlichen Repo gescannt. Fehlt das
+      # Feld `private`, wird gescannt (mehr scannen ist die sichere Seite). Die
+      # Altlasten der privaten Historie gehoeren zu PUB-01, nicht in einen
+      # dauerhaft roten Job.
+      - run: bash scripts/ci-test.sh secrets
+        shell: bash
+        env:
+          CI_SCAN_HISTORY: ${{ github.event.repository.private && '0' || '1' }}
+
+  images:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - {name: vizpatch, context: agent}
+          - {name: vizpatch-webui, context: webui}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Image bauen (ohne Push)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.image.context }}
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: ci-scan/${{ matrix.image.name }}:${{ github.sha }}
+          provenance: false
+          cache-from: type=gha,scope=${{ matrix.image.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}
+      - name: Trivy-Gate (CRITICAL, behebbar)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ci-scan/${{ matrix.image.name }}:${{ github.sha }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL
+          scanners: vuln,secret
+          trivyignores: .trivyignore
+          version: v0.76.2
+      - name: Image-Inhalt pruefen (Schichten)
+        shell: bash
+        env:
+          IMG_REF: ci-scan/${{ matrix.image.name }}:${{ github.sha }}
+        run: bash scripts/check-image-content.sh --image "$IMG_REF"

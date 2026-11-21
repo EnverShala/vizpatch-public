@@ -1,0 +1,7 @@
+# .NET-Build-Artefakte des Outlook-Add-ins (nicht versionieren)
+bin/
+obj/
+*.user
+.vs/
+# ClickOnce-Publish-Output (Deliverable liegt versioniert unter dist/…/addin-publish/)
+publish/

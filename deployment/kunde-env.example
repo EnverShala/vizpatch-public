@@ -1,0 +1,202 @@
+# ==== KUNDEN-KONFIGURATION ====
+# Vor-Ort-Setup: diese 5 Felder mit Kunde gemeinsam ausfüllen.
+
+# IMAP-Zugang (Kunde nennt E-Mail-Adresse + Passwort + gewünschten KI-Ordner-Namen)
+IMAP_USER=<info@firma-name.de>
+IMAP_PASSWORD=<app-password-oder-mail-password>
+IMAP_DRAFTS_FOLDER=<KI-Entwürfe>   # Wird automatisch angelegt falls nicht vorhanden
+OWN_EMAIL_ADDRESS=<info@firma-name.de>  # Meistens identisch zu IMAP_USER
+
+# LLM-Provider + API-Key (Enver Shala stellt aus Business-Account)
+# LLM_PROVIDER: anthropic | openai | google (Vizpatch-WebUI leitet dies automatisch
+# aus dem Key-Präfix ab — bei manueller .env-Bearbeitung ohne WebUI selbst setzen)
+LLM_PROVIDER=anthropic
+LLM_API_KEY=<sk-ant-xxx>
+
+# ==== OPTIONAL — Nur setzen wenn Auto-Detect fehlschlägt ====
+# Der Agent erkennt IMAP-Host aus der E-Mail-Domain automatisch.
+# Unterstützte Provider: GMX, Web.de, IONOS, T-Online, Gmail, Outlook/M365, Mailbox.org, Strato, Hetzner.
+# Manuelle Overrides:
+# IMAP_HOST=imap.eigener-server.de
+# IMAP_PORT=993
+# IMAP_USE_SSL=true
+# IMAP_SENT_FOLDER=Sent
+
+# ==== DEFAULTS — Normalerweise nicht ändern ====
+IMAP_INBOX_FOLDER=INBOX
+POLL_INTERVAL_SECONDS=300
+BACKFILL_DAYS=1
+OWN_DISPLAY_NAME=<Firmenname>
+MODEL_CLASSIFY=claude-haiku-4-5
+MODEL_DRAFT=claude-sonnet-4-6
+LLM_MAX_TOKENS_DRAFT=600
+LLM_TEMPERATURE_DRAFT=0.3
+ENABLE_PII_REDACTION=true
+# Automatische Entwurf-Erstellung (Default true). Auf false setzen, um für
+# dieses Postfach nur zu klassifizieren, ohne Entwürfe zu erzeugen.
+ENABLE_DRAFT_CREATION=true
+# Automatisches Einsortieren gelesener Mails beim Polling (Phase 14, Default
+# false — bewegt Mails ohne Zutun des Betreibers, deshalb bewusst NICHT wie
+# die übrigen Defaults hier "an"). Kategorien stehen in sortierregeln.md
+# neben context.md. Wird normalerweise über das WebUI-Formular gesetzt, nicht
+# hier manuell editiert.
+ENABLE_AUTO_SORT=false
+# Probelauf-Modus (Default true): protokolliert, was sortiert würde, bewegt
+# aber nichts — erst nach Prüfung der Treffsicherheit auf false setzen.
+AUTO_SORT_DRY_RUN=true
+# Kostendeckel: höchstens so viele gelesene Mails pro Poll-Zyklus klassifiziert
+# (ein Klassifikations-Aufruf für den gesamten Stapel, nicht pro Mail).
+AUTO_SORT_MAX_MAILS=50
+# ---- Urlaubs-Autoantwort (URL-01..09) ----
+# Die EINZIGE Funktion des Produkts, die selbstständig Mails VERSCHICKT — alles
+# andere legt nur Entwürfe an. Deshalb Default AUS und zusätzlich ein Probelauf,
+# der ebenfalls Default AN ist. Der Agent selbst spricht dabei kein SMTP: er
+# reicht die fertige Mail an den webui-Container weiter, der sie zustellt.
+# Wird normalerweise über das WebUI-Formular gesetzt, nicht hier editiert.
+ENABLE_URLAUBSANTWORT=false
+# Probelauf (Default true): protokolliert, WEM geantwortet würde, verschickt
+# aber nichts. Erst nach Sichtung im Log auf false setzen.
+URLAUB_DRY_RUN=true
+# Urlaubszeitraum, beide Grenzen EINSCHLIESSLICH, Format JJJJ-MM-TT.
+# Leer = kein Urlaub eingetragen = es passiert nichts.
+URLAUB_VON=
+URLAUB_BIS=
+# Deckel: höchstens so viele Autoantworten pro Poll-Zyklus.
+URLAUB_MAX_PRO_ZYKLUS=20
+# KI-Vorfilter gegen Transaktions-Automaten (Default true): Versand- und
+# Bestellbestaetigungen, Behoerden-Benachrichtigungen und aehnliche
+# Automatenpost bekommen keine Abwesenheitsnotiz. Ein Klassifikations-Aufruf
+# pro Zyklus. FAIL-OPEN: schlaegt er fehl, wird geantwortet — ein Kunde ohne
+# Antwort waere der teurere Fehler als eine ueberfluessige Mail an einen Shop.
+URLAUB_NUR_MENSCHEN=true
+# Interne Adresse des webui-Containers (Compose-Service-Name). Nur ändern, wenn
+# die beiden Container nicht im selben Compose-Netz liegen.
+WEBUI_INTERNAL_URL=http://webui:8080
+LOG_LEVEL=INFO
+CONTEXT_FILE=/config/context.md
+STATE_DB=/data/state.db
+PROMPTS_DIR=/app/prompts
+
+# ==== WEBUI (Phase 4) ====
+# WEBUI_USER: Login für Browser-UI. Zufallswert empfohlen: openssl rand -base64 12
+WEBUI_USER=admin
+# WEBUI_PASSWORD: Muss VOR erstem Start gesetzt werden (nie Default lassen!)
+WEBUI_PASSWORD=<setzen-vor-erstem-start>
+# AUTOSTART_ENABLED: true = beim Server-Start via systemd. Siehe install-autostart.sh
+AUTOSTART_ENABLED=false
+# DOCKER_GID: NICHT nötig — die Container laufen als root und dürfen den
+# Docker-Socket ohnehin nutzen. install-autostart.sh trägt die echte
+# Host-GID hier ein; gebraucht wird sie nur, falls ein Service jemals auf
+# einen non-root-Benutzer umgestellt wird.
+
+# ==== AGENTEN-CHAT (Phase 7) — Kosten-/Missbrauchsschutz, Defaults meist ok ====
+# CHAT_RATE_LIMIT_PER_MIN: Max. Chat-Nachrichten pro Minute (pro Client-IP)
+CHAT_RATE_LIMIT_PER_MIN=20
+# CHAT_MAX_TOKENS: Hartes Token-Limit pro Chat-Antwort (Kostensicherheitsnetz)
+CHAT_MAX_TOKENS=2000
+# CHAT_HISTORY_TOKEN_BUDGET: Token-Budget für den mitgeschickten Chat-Verlauf
+# im Prompt (ältere Turns fallen zuerst weg, wenn das Budget überschritten wird) —
+# 40000 reicht für einen mehrstufigen Postfach-Dialog (Ordner/Anhänge/Verlauf)
+CHAT_HISTORY_TOKEN_BUDGET=40000
+
+# ==== POSTFACH-WERKZEUGE UND ANHÄNGE — Defaults sind sinnvoll ====
+# Diese Werte wirken GLOBAL für alle Agenten. Ein Eintrag in der Konfiguration
+# eines einzelnen Agenten (config/agents/<agent-id>/.env) gewinnt dagegen —
+# per-Agent vor global. Leer lassen = Voreinstellung des Programms.
+#
+# ENABLE_FOLDER_DELETE: darf der Chat-Agent ganze Ordner löschen? Nur der exakte
+# Wert "false" schaltet ab. Die enthaltenen Mails wandern dabei immer zuerst in
+# den Papierkorb, und Posteingang/Entwürfe/Gesendet/Papierkorb/Spam/Archiv sind
+# grundsätzlich gesperrt — diese Sperre lässt sich NICHT abschalten.
+ENABLE_FOLDER_DELETE=
+# ENABLE_ATTACHMENT_VISION: darf der Chat-Agent Bild-Anhänge und eingescannte
+# PDFs inhaltlich auswerten? Nur "false" schaltet ab. WICHTIG: Bildinhalte
+# lassen sich NICHT pseudonymisieren — die automatische Unkenntlichmachung
+# arbeitet nur auf Text. Wer das nicht möchte, setzt hier "false"; dann bleibt
+# es beim Auslesen von Text-Anhängen.
+ENABLE_ATTACHMENT_VISION=
+# MAX_VISION_MB: Obergrenze für einen Anhang, der zur Bildauswertung geschickt
+# wird (Vorgabe 7). Bewusst kleiner als MAX_ATTACHMENT_MB, weil die Auswertung
+# eine engere Grenze hat als der Mailversand.
+MAX_VISION_MB=
+# MAX_VISION_PDF_PAGES: Obergrenze für die Seitenzahl eines PDFs, das visuell
+# ausgewertet wird (Vorgabe 20). Längere PDFs werden mit klarer Meldung
+# abgelehnt, statt unbemerkt hohe Kosten zu erzeugen.
+MAX_VISION_PDF_PAGES=
+# MAX_ATTACHMENT_MB: Obergrenze für einen Datei-Anhang im Chat (Vorgabe 15)
+MAX_ATTACHMENT_MB=15
+# ENABLE_BILD_VORSCHAU: zeigt der Chat-Agent ausgewertete Bild-Anhänge als
+# kleines Vorschaubild in der Chat-Pane/im Browser-Chat? Nur "false" schaltet
+# BEIDES ab (Vorschau-Ereignis UND Auslieferung) — der Agent wertet den Anhang
+# dann weiter inhaltlich aus (ENABLE_ATTACHMENT_VISION bleibt davon unberührt),
+# nur die Anzeige entfällt.
+ENABLE_BILD_VORSCHAU=
+# ENABLE_UNSUBSCRIBE: darf der Chat-Agent eine Newsletter-Abmeldung
+# tatsaechlich AUSLOESEN? Nur "false" schaltet das ab. Das reine NENNEN des
+# Abmeldewegs ("du kannst dich hier abmelden: ...") bleibt immer moeglich und
+# haengt an keinem Flag. Das Ausloesen verlaesst das System und laeuft deshalb
+# wie ein Mailversand ueber Vorschau + ausdrueckliche Freigabe; die Ziel-Adresse
+# stammt aus einer fremden Mail, weshalb nur https erlaubt ist, keine
+# Weiterleitungen verfolgt werden und lokale Netzadressen abgelehnt werden.
+ENABLE_UNSUBSCRIBE=
+# MAX_PREVIEW_MB: Obergrenze für einen Anhang, der als Vorschaubild ausgeliefert
+# wird (Vorgabe 10). Eigene, kleinere Grenze als MAX_ATTACHMENT_MB (15) — die
+# Frage „was liefere ich an den eigenen Client aus" ist unabhängig von „was
+# nehme ich als Datei-Anhang entgegen".
+MAX_PREVIEW_MB=
+# Befund Phase 13, Plan 13-01: diese vier Flags fehlten bis hierher in dieser
+# Datei, obwohl der Chat-Agent-Code sie liest — ein hier gesetzter Wert
+# erreichte den Container nie, der Code-Default griff stillschweigend.
+#
+# ENABLE_MAIL_SEND: darf der Chat-Agent nach ausdrücklicher Freigabe Mails
+# versenden/weiterleiten (Vorschau + Zwei-Request-Bestätigungs-Gate, kein
+# Auto-Send)? Default AN. Nur "false" schaltet Versand UND Weiterleiten
+# komplett ab.
+ENABLE_MAIL_SEND=
+# ENABLE_CHAT_TOOLS: darf der Chat-Agent überhaupt Postfach-Werkzeuge nutzen
+# (suchen/lesen/verschieben/löschen/...)? Default AN. Nur "false" schaltet
+# ALLE Werkzeuge ab — der Chat bleibt dann rein beratend, ohne Postfach-Zugriff.
+ENABLE_CHAT_TOOLS=
+# ENABLE_TRASH_CONFIRMATION: fragt der Chat-Agent vor dem Verschieben einer
+# Mail in den Papierkorb erst per Session-Bestätigung nach? Code-Default ist
+# AN (Rückfrage aktiv); nur der exakte Wert "false" schaltet sie ab — diese
+# Installation läuft bereits mit "false" (Betreiber-Entscheidung "nicht
+# nachfragen", siehe CLAUDE.md).
+ENABLE_TRASH_CONFIRMATION=
+# ENABLE_TRASH_PURGE: darf der Chat-Agent den erkannten Papierkorb auf Zuruf
+# endgültig leeren (IRREVERSIBEL, IMAP EXPUNGE)? Default AN. Nur "false"
+# schaltet das ab.
+ENABLE_TRASH_PURGE=
+
+# ==== OUTLOOK-ADD-IN (Phase 8) ====
+# ADDIN_BASE_URL: öffentliche HTTPS-Basis-URL des Reverse-Proxys vor der WebUI
+# (muss von den Outlook-Clients erreichbar sein, https:// ist Pflicht — siehe
+# deployment/README.addin.md Kapitel 1+2 und deployment/Caddyfile.example)
+ADDIN_BASE_URL=https://vizpatch.<kunde-domain>.de
+# ADDIN_FRAME_ANCESTORS: leer lassen = Office-Standard-Origins (empfohlen);
+# nur bei Sonderfällen (z. B. abweichender Outlook-Host) explizit überschreiben
+ADDIN_FRAME_ANCESTORS=
+
+# ==== UPDATE-CHECK (Add-in) ====
+# Der Update-Check braucht KEINE Zugangsdaten: er liest nur die aktuelle
+# Versionsnummer aus dem öffentlichen Index
+# https://raw.githubusercontent.com/EnverShala/vizpatch-releases/main/latest.json
+# Beide Einträge hier sind optional — im Normalfall bleiben sie leer.
+#
+# VIZPATCH_VERSION: die installierte Release-Version explizit angeben (z. B.
+# v1.15.0). Normalerweise unnötig, weil sie aus dem Image-Tag gelesen wird;
+# nötig nur, wenn die Tags abweichen (etwa bei einem Dev-/Sonder-Build).
+VIZPATCH_VERSION=
+# VIZPATCH_VERSION_INDEX_URL: abweichende Index-URL, falls der Versions-Index
+# einmal umzieht. Leer = Standard-URL oben.
+VIZPATCH_VERSION_INDEX_URL=
+
+# ==== SELF-UPDATE (Stufe 2) ====
+# Der Betreiber klickt in den Add-in-Einstellungen "Jetzt updaten" — dafuer
+# lädt die WebUI das Deployment-Paket aus einem PRIVATEN Dist-Repo (nur
+# Release-Assets, kein Quellcode). Beide Werte hier bleiben normalerweise
+# LEER: der Token wird beim Paketbau automatisch in die Deploy-Root-.env
+# vorbefuellt (build-deployment-package.sh, D-2) — der Kunde trägt hier
+# nichts ein (Zero-Config-Prinzip).
+VIZPATCH_DIST_TOKEN=
+VIZPATCH_DIST_REPO=

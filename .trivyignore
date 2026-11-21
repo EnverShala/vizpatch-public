@@ -1,0 +1,6 @@
+# Trivy-Ausnahmen (Phase 15, CI-04). Standard: KEINE Eintraege.
+# Format je Eintrag, die Begruendung steht als Kommentarzeile darueber:
+#   # Begruendung: warum nicht behebbar, Datum, wer entschieden hat
+#   CVE-JJJJ-NNNNN exp:JJJJ-MM-TT
+# Hoechstfrist 90 Tage. Abgelaufene Eintraege greifen nicht mehr (Trivy-Verhalten),
+# damit wird eine Ausnahme nie still dauerhaft.

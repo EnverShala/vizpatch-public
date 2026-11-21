@@ -1,0 +1,350 @@
+{# ==========================================================================
+   Datenschutzbestimmungen (DSGVO) für Vizpatch — wiederverwendbares Fragment.
+   Eingebunden (a) aufklappbar im Setup-Formular (index.html) und
+   (b) als eigenständige Seite unter GET /datenschutz.
+
+   MUSTER — vor dem Live-Betrieb mit echten Kundenmails von einer/einem
+   Datenschutzbeauftragten oder Anwalt/Anwältin prüfen lassen. Platzhalter in
+   [eckigen Klammern] muss der Betreiber mit seinen echten Angaben ersetzen.
+   ========================================================================== #}
+<div class="datenschutz-text">
+
+  <p><strong>Stand:</strong> 2026-08-15 · <em>Muster/Entwurf — vor dem Produktivbetrieb rechtlich prüfen lassen und die Platzhalter in [eckigen Klammern] ausfüllen.</em></p>
+
+  <p>Diese Datenschutzbestimmungen beschreiben, wie die selbst gehostete Software
+  <strong>Vizpatch</strong> (KI-gestützter E-Mail-Assistent) personenbezogene Daten
+  verarbeitet. Mit dem Setzen des Häkchens „Ich stimme den Datenschutzbestimmungen zu"
+  bestätigt der Betreiber, diese Bestimmungen gelesen zu haben, und willigt in die hier
+  beschriebene Verarbeitung ein.</p>
+
+  <h3>1. Verantwortlicher und Anbieter</h3>
+  <p><strong>Verantwortlicher</strong> im Sinne der DSGVO für die im E-Mail-Postfach
+  verarbeiteten personenbezogenen Daten ist der Betreiber des Postfachs:</p>
+  <ul>
+    <li>[Firmenname des Betreibers]</li>
+    <li>[Anschrift]</li>
+    <li>[E-Mail / Telefon]</li>
+    <li>[ggf. Datenschutzbeauftragte:r]</li>
+  </ul>
+  <p><strong>Anbieter der Software</strong> ist Enver Shala (im Folgenden „Anbieter"). Datenschutzkontakt des Anbieters:
+  <a href="mailto:envershala1989@gmail.com">envershala1989@gmail.com</a>.
+  Vizpatch läuft ausschließlich auf dem eigenen Server des Betreibers (Self-Hosting via
+  Docker). Der Anbieter betreibt keine zentrale Datenverarbeitung der Postfachinhalte.
+  Soweit der Anbieter im Rahmen von Einrichtung, Wartung oder Support Zugriff auf den
+  Server oder auf personenbezogene Daten erhält, geschieht dies als Auftragsverarbeiter
+  auf Grundlage eines Auftragsverarbeitungsvertrags (AVV) mit dem Betreiber (siehe Ziffer 9).</p>
+
+  <h3>2. Zweck und Art der Verarbeitung</h3>
+  <p>Vizpatch liest eingehende E-Mails des konfigurierten Postfachs, klassifiziert sie
+  (Kundenanfrage ja/nein) und erstellt für relevante Anfragen einen Antwort-<em>Entwurf</em>,
+  der ausschließlich im Entwürfe-Ordner des Postfachs abgelegt wird.
+  <strong>Diese automatische Verarbeitung versendet niemals selbstständig E-Mails</strong>
+  („Kein-Auto-Send" der Entwurfs-Pipeline): automatisch erstellte Entwürfe prüft und
+  versendet ausschließlich der Betreiber selbst in seinem Mail-Programm. Davon getrennt
+  kann der Assistenz-Chat auf ausdrückliche Anweisung des Betreibers eine im Chat
+  freigegebene E-Mail versenden — ausschließlich nach vollständiger Vorschau und
+  expliziter Freigabe, Einzelheiten in Ziffer 6. Zusätzlich kann Vizpatch aus dem
+  Gesendet-Ordner ein Schreibstil-Profil ableiten und einen Assistenz-Chat bereitstellen
+  (Ziffern 4–6).</p>
+
+  <h3>3. Welche Daten gespeichert werden</h3>
+  <p>Auf dem Server des Betreibers werden gespeichert:</p>
+  <ul>
+    <li><strong>Zugangsdaten:</strong> E-Mail-Adresse (IMAP-Benutzer), IMAP-Passwort und der
+      API-Schlüssel des KI-Anbieters. Passwort und API-Schlüssel werden
+      <strong>verschlüsselt at-rest</strong> (Fernet/AES) gespeichert; der Schlüssel liegt als
+      Datei mit eingeschränkten Rechten (chmod 600) im Konfigurationsverzeichnis.</li>
+    <li><strong>Betriebs-/Unternehmensinformationen</strong> (<code>context.md</code>): nur die
+      für den E-Mail-Kontext <em>nötigsten</em> Angaben (z. B. Öffnungszeiten, Angebote, Ton,
+      Signatur, FAQ). Der Betreiber entscheidet über den Inhalt und pflegt ihn selbst.</li>
+    <li><strong>Schreibstil-Profil</strong> (<code>style.md</code>): eine aus gesendeten Mails
+      abgeleitete Beschreibung des Stils (Anrede, Du/Sie, Grußformel, Formalität u. Ä.) —
+      <em>kein</em> Mail-Inhalt, sondern eine abstrahierte Stil-Zusammenfassung.</li>
+    <li><strong>Verarbeitungs-Status</strong>: eine lokale Datenbank speichert lediglich
+      technische Kennungen bereits verarbeiteter Mails (Message-IDs), <strong>nicht</strong>
+      deren Inhalt, um Doppel-Entwürfe zu vermeiden.</li>
+    <li><strong>Chat-Verlauf</strong> (seit Version 1.21): die Nachrichten einer Chat-Sitzung
+      werden auf dem Server des Betreibers in einer eigenen lokalen Datenbank gespeichert,
+      damit der Verlauf ein Neuladen der Seite und das Schließen des Programms übersteht.
+      Gespeichert werden die Beiträge des Betreibers, die Antworten des Chats sowie eine
+      kompakte Notiz zu den ausgeführten Postfach-Aktionen (etwa Ordnername, Betreff,
+      Dateiname eines Anhangs). <strong>Da der Betreiber im Chat über konkrete E-Mails
+      spricht, können diese Einträge Inhalte aus E-Mails enthalten</strong> — siehe die
+      Klarstellung am Ende von Ziffer 4. Die Speicherung erfolgt ausschließlich auf dem
+      Server des Betreibers; im Browser wird nur eine inhaltsleere Sitzungskennung
+      hinterlegt. Löschung: siehe Ziffer 8.</li>
+  </ul>
+
+  <h3>4. Verarbeitung von E-Mails — was <em>nicht</em> gespeichert wird</h3>
+  <ul>
+    <li>Eingehende Mails werden zur Klassifikation und Entwurfserstellung <strong>nur
+      vorübergehend im Arbeitsspeicher</strong> verarbeitet und danach nicht dauerhaft
+      gespeichert. Weder fremde (eingehende) noch eigene (gesendete) E-Mail-Inhalte werden
+      von der Entwurfs-Pipeline dauerhaft abgelegt. <strong>Eine Ausnahme bildet der
+      Chat-Verlauf</strong> — siehe die Klarstellung am Ende dieser Ziffer.</li>
+    <li>Zur einmaligen Ableitung des Schreibstils liest Vizpatch die letzten Mails des
+      Gesendet-Ordners; auch diese werden nur vorübergehend verarbeitet und nicht gespeichert.
+      Gespeichert wird ausschließlich das abstrahierte Stil-Profil (Ziffer 3).</li>
+    <li>Entwürfe werden ausschließlich im Postfach des Betreibers (Entwürfe-Ordner) abgelegt —
+      die Datenhoheit bleibt beim Betreiber.</li>
+    <li>Die Erstellung von Entwürfen aus E-Mails erfolgt nur nach <strong>ausdrücklicher
+      Zustimmung des Betreibers</strong> (diese Einwilligung) und nur für das ausdrücklich
+      konfigurierte Postfach.</li>
+    <li><strong>Reversible Pseudonymisierung strukturierter PII:</strong> Vor der Übermittlung
+      an den KI-Dienst werden bestimmte strukturierte Muster — <strong>E-Mail-Adresse,
+      Telefonnummer, IBAN, Kreditkartennummer, URL und Datum</strong> — standardmäßig durch
+      getypte Platzhalter (z. B. <code>[IBAN_1]</code>) ersetzt. Diese Ersetzung geschieht
+      lokal auf dem Server des Betreibers und ist reversibel: der KI-Dienst erhält nur die
+      Platzhalter, die Zuordnung zu den echten Werten (Mapping) verbleibt ausschließlich im
+      Arbeitsspeicher des Servers und verlässt diesen nie. Nach der Antwort des KI-Diensts
+      werden die Platzhalter lokal wieder durch die echten Werte ersetzt, bevor der Entwurf
+      bzw. die Chat-Antwort angezeigt wird.</li>
+  </ul>
+
+  <p><strong>Klarstellung zum Chat-Verlauf (Abgrenzung zur Entwurfs-Pipeline):</strong> Die
+  Aussage „E-Mail-Inhalte werden nicht dauerhaft gespeichert" gilt uneingeschränkt für die
+  automatische Entwurfs-Pipeline. Für den <em>Agenten-Chat</em> gilt sie nicht in gleicher
+  Form: Damit ein Gespräch über mehrere Schritte hinweg nachvollziehbar bleibt und ein
+  Neuladen der Seite übersteht, wird der Chat-Verlauf auf dem Server des Betreibers
+  gespeichert (Ziffer 3). Spricht der Betreiber im Chat über eine konkrete E-Mail oder
+  lässt er sich deren Inhalt zusammenfassen, <strong>können diese Inhalte damit für die
+  Dauer der Aufbewahrung auf dem Server vorliegen</strong>. Die Aufbewahrungsfrist und die
+  Möglichkeit, den Verlauf jederzeit selbst zu löschen, sind in Ziffer 8 beschrieben.</p>
+
+  <p><strong>Ehrlicher Hinweis zum Schutzumfang (wichtig):</strong> Namen, Firmennamen und
+  Ortsangaben werden in der aktuellen Ausbaustufe <strong>NICHT</strong> maskiert und daher
+  weiterhin unverändert an den KI-Anbieter übermittelt. Pseudonymisierte Daten bleiben
+  datenschutzrechtlich weiterhin <strong>personenbezogene Daten</strong> (Erwägungsgrund 26
+  DSGVO) — der Einsatz eines Auftragsverarbeitungsvertrags (AVV) mit dem genutzten
+  KI-Anbieter bleibt daher erforderlich (siehe Ziffer 9). Die abschließende
+  datenschutzrechtliche Bewertung, insbesondere ob und in welchem Umfang der AVV im
+  Einzelfall entbehrlich wäre, trifft der/die Datenschutzbeauftragte des Betreibers.</p>
+
+  <h3>5. Einsatz von KI-Diensten (Auftragsverarbeiter)</h3>
+  <p>Zur Klassifikation, Entwurfserstellung, Stil-Ableitung und für den Chat übermittelt
+  Vizpatch die dafür erforderlichen Inhalte an den vom Betreiber gewählten KI-Anbieter über
+  dessen API. Je nach hinterlegtem API-Schlüssel ist das:</p>
+  <ul>
+    <li><strong>Anthropic</strong> (Claude) — Standard;</li>
+    <li>optional <strong>OpenAI</strong> oder <strong>Google</strong> (Gemini).</li>
+  </ul>
+  <p>Der jeweilige KI-Anbieter verarbeitet diese Daten als <strong>Auftragsverarbeiter</strong>.
+  Für den tatsächlich genutzten Anbieter ist ein Auftragsverarbeitungsvertrag (Data Processing
+  Addendum) abzuschließen bzw. zu akzeptieren (siehe Ziffer 9). Da diese Anbieter Daten auch
+  <strong>außerhalb der EU (z. B. USA)</strong> verarbeiten können, erfolgt der Transfer auf
+  Grundlage der EU-Standardvertragsklauseln (SCC) bzw. eines Angemessenheitsbeschlusses.
+  Soweit vom Anbieter unterstützt, wird eine <strong>Zero-Data-Retention</strong>-Verarbeitung
+  angefragt (keine Speicherung/kein Training durch den KI-Anbieter).</p>
+
+  <h3>6. Agenten-Chat</h3>
+  <p>Vizpatch stellt optional einen Assistenz-Chat bereit, der über den hinterlegten
+  API-Schlüssel Zugriff auf den KI-Dienst hat und kennt den Firmen-Kontext, das
+  Stil-Profil und den Betriebsstatus des Agenten. Je nach genutztem KI-Anbieter kann der
+  Chat zusätzlich mit Werkzeugen auf das Postfach zugreifen — <strong>ausschließlich auf
+  ausdrückliche Anweisung des Betreibers</strong>, niemals ungefragt. Konkret kann der Chat:</p>
+  <ul>
+    <li><strong>Mails und Entwürfe durchsuchen und lesen</strong> (read-only) — der
+      Mailtext wird vor der Übermittlung an den KI-Dienst durch die reversible
+      Pseudonymisierung strukturierter PII (Ziffer 4) pseudonymisiert; Namen/Orte bleiben
+      dabei sichtbar (siehe ehrlicher Hinweis in Ziffer 4);</li>
+    <li>einen bestehenden <strong>Entwurf umformulieren</strong> — die neue Fassung wird im
+      Entwürfe-Ordner abgelegt, die alte Fassung in den Papierkorb verschoben (siehe
+      nächster Punkt); dabei wird nichts versendet;</li>
+    <li>einen <strong>neuen Entwurf anlegen</strong> (z. B. einen im Chat verfassten Antworttext)
+      im Entwürfe-Ordner ablegen; auch hier wird nichts versendet — der Betreiber prüft und
+      versendet den Entwurf selbst im Mail-Programm;</li>
+    <li><strong>Mails oder Entwürfe in den Papierkorb verschieben</strong> — reversibel
+      (IMAP-Verschieben, kein Expunge), die Nachricht bleibt im Papierkorb-Ordner erhalten.
+      Diese Aktion läuft standardmäßig <strong>nach einmaliger Bestätigung des Betreibers pro
+      Chat-Sitzung</strong>: der Chat nennt bei der ersten Verschiebung einer Sitzung zunächst
+      nur das betroffene Ziel (Betreff/Absender/Datum) und verschiebt erst nach einem
+      expliziten „ja" des Betreibers tatsächlich etwas; danach laufen weitere Verschiebungen in
+      derselben Chat-Sitzung ohne erneute Rückfrage. Dieses Bestätigungs-Gate ist über eine
+      Konfigurationsoption abschaltbar (bei dieser Installation ggf. deaktiviert); jede
+      Verschiebung bleibt reversibel und wird protokolliert.</li>
+    <li><strong>Ordner anlegen, umbenennen und Mails einsortieren</strong> — auf Anweisung
+      des Betreibers legt der Chat Ordner im Postfach an, benennt sie um und verschiebt
+      einzelne oder mehrere Mails hinein. Diese Aktionen betreffen die Ablage, nicht den
+      Inhalt: es werden keine Mails verändert und keine zusätzlichen Inhalte an den
+      KI-Dienst übermittelt. Das Verschieben ist reversibel.</li>
+    <li><strong>Ganze Ordner löschen</strong> — auf ausdrückliche Anweisung des Betreibers.
+      Die im Ordner enthaltenen Nachrichten werden dabei <strong>zuvor in den Papierkorb
+      verschoben</strong> und nicht vernichtet; die Aktion bleibt damit umkehrbar. Lässt
+      sich der Papierkorb nicht ermitteln oder scheitert das Umlagern, wird der Ordner
+      <strong>nicht</strong> gelöscht. Strukturell ausgeschlossen ist das Löschen und
+      Umbenennen der Standardordner Posteingang, Entwürfe, Gesendet, Papierkorb, Spam und
+      Archiv; diese Sperre ist nicht abschaltbar und greift auch dann, wenn ein solcher
+      Ordner unterhalb des angegebenen Ordners liegt. Die Funktion insgesamt ist über eine
+      Konfigurationsoption (<code>ENABLE_FOLDER_DELETE</code>) abschaltbar.</li>
+    <li><strong>Den Papierkorb-Ordner endgültig leeren</strong> — nur auf ausdrückliche
+      Anweisung des Betreibers leert der Chat den erkannten Papierkorb-Ordner
+      <strong>unwiderruflich</strong> (IMAP „\Deleted" + Expunge), ohne Rückfrage. Diese
+      Funktion wirkt strukturell ausschließlich auf den erkannten Papierkorb-Ordner (niemals
+      auf den Posteingang oder den Entwürfe-Ordner) und ist über eine Konfigurationsoption
+      abschaltbar.</li>
+    <li><strong>Eine im Chat verfasste E-Mail versenden — nur nach Vorschau und
+      ausdrücklicher Freigabe.</strong> Auf Anweisung des Betreibers bereitet der Chat einen
+      Versand vor und zeigt zunächst die <em>vollständige</em> E-Mail (Empfänger, Betreff,
+      kompletter Text, ggf. Anhang); in diesem Schritt wird nichts versendet. Erst wenn der
+      Betreiber in einer <em>neuen</em> Chat-Nachricht ausdrücklich zustimmt, wird exakt die
+      gezeigte E-Mail über den E-Mail-Anbieter des Betreibers (SMTP, ausschließlich
+      verschlüsselt via STARTTLS/SSL) versendet; eine Kopie wird im Gesendet-Ordner abgelegt,
+      soweit der Anbieter dies nicht selbst tut. Die Freigabe wird serverseitig erzwungen
+      (eine Zustimmung im selben Schritt wie die Vorschau ist technisch wirkungslos; nach der
+      Freigabe ist der Inhalt technisch unveränderlich; eine inhaltliche Änderung erfordert
+      eine neue Vorschau und eine neue Freigabe). Empfänger, Betreff und Text werden dabei
+      nicht protokolliert. Die gesamte Versand-Funktion ist über eine Konfigurationsoption
+      (<code>ENABLE_MAIL_SEND</code>) abschaltbar. <strong>Unabhängig davon gilt:</strong>
+      automatisch erstellte Entwürfe der Entwurfs-Pipeline (Ziffer 2) versendet der Chat
+      nicht — sie bleiben im Entwürfe-Ordner, bis der Betreiber sie selbst versendet.</li>
+    <li><strong>Anhänge eingehender E-Mails auslesen und zusammenfassen:</strong> Auf
+      Anweisung des Betreibers liest der Chat den <em>Inhalt</em> eines Anhangs aus einer
+      E-Mail des Postfachs und beantwortet daraus Fragen. Erfasst sind Textformate (etwa
+      TXT, CSV, Markdown, JSON), PDF-Dateien sowie Bilddateien. Der ausgelesene Text wird
+      wie ein Mailtext behandelt: er wird vor der Übermittlung an den KI-Dienst durch die
+      reversible Pseudonymisierung strukturierter PII (Ziffer 4) verarbeitet, und die
+      Dateigröße ist begrenzt. Nicht auswertbare Formate werden als solche gemeldet.
+      <strong>Abzugrenzen vom nächsten Punkt:</strong> dort geht es um Dateien, die der
+      Betreiber selbst hochlädt — bei diesen wird der Inhalt <em>nicht</em> an den
+      KI-Dienst übermittelt. Beim Auslesen eines Mail-Anhangs ist die Übermittlung des
+      Inhalts dagegen gerade der Zweck. Die Funktion ist über eine Konfigurationsoption
+      (<code>ENABLE_ATTACHMENT_VISION</code> für Bilder und eingescannte PDF-Dateien)
+      einschränkbar.</li>
+    <li><strong>Bild-Anhänge zur Ansicht darstellen:</strong> Wertet der Chat einen
+      Bild-Anhang aus, kann er ihn zusätzlich als kleines Vorschaubild im Chat-Fenster
+      anzeigen, damit der Betreiber erkennt, worauf sich die Auskunft bezieht. Das Bild
+      wird dafür vom Server des Betreibers an dessen eigenes Anzeigeprogramm (Browser
+      bzw. Outlook-Seitenleiste) ausgeliefert — es verlässt den Verantwortungsbereich des
+      Betreibers dabei nicht und wird nicht zusätzlich gespeichert. Ausgeliefert werden
+      ausschließlich Bilddateien innerhalb einer Größengrenze. Abschaltbar über
+      <code>ENABLE_BILD_VORSCHAU</code>.</li>
+    <li><strong>Vom Betreiber hochgeladene Datei-Anhänge verarbeiten:</strong> Der Betreiber
+      kann im Chat (auch per Drag&nbsp;&amp;&nbsp;Drop) eine Datei hochladen, um sie an einen
+      Entwurf anzuhängen oder — nach der oben beschriebenen Freigabe — mitzusenden. Die Datei
+      wird dazu nur vorübergehend in einem temporären Verzeichnis auf dem Server des
+      Betreibers abgelegt (server-generierter Dateiname, Größenlimit) und nach Verwendung
+      bzw. spätestens nach Ablauf einer kurzen Frist gelöscht. Der <em>Inhalt</em> der Datei
+      wird nicht an den KI-Dienst übermittelt — der Chat erhält ausschließlich Dateiname,
+      Größe und Dateityp.</li>
+  </ul>
+  <p><strong>Ehrlicher Hinweis zu Bildern und eingescannten Dokumenten (wichtig):</strong>
+  Die in Ziffer 4 beschriebene Pseudonymisierung arbeitet auf <em>Text</em>. Auf ein Bild
+  lässt sie sich nicht anwenden. Wird ein Bild-Anhang oder ein eingescanntes Dokument ohne
+  Textebene inhaltlich ausgewertet, <strong>wird die Bilddatei unverändert an den KI-Dienst
+  übermittelt</strong> — einschließlich aller darauf sichtbaren personenbezogenen Daten,
+  etwa eines abfotografierten Briefkopfs, einer Unterschrift oder einer Bankverbindung auf
+  einer eingescannten Rechnung. Für diese Kategorie von Anhängen ist der Schutzumfang
+  damit geringer als bei Textinhalten. Der Betreiber kann diese Auswertung vollständig
+  abschalten (<code>ENABLE_ATTACHMENT_VISION=false</code>); der Chat liest dann weiterhin
+  Text-Anhänge aus, wertet aber keine Bilder und keine eingescannten Dokumente mehr aus.
+  Ob diese Verarbeitung im konkreten Einsatz zulässig und angemessen ist, entscheidet
+  der/die Datenschutzbeauftragte des Betreibers.</p>
+
+  <p><strong>Zugangswege zum Chat:</strong> Der Chat ist über das WebUI im Browser sowie
+  optional über ein Outlook-Add-in (Chat-Seitenleiste in Microsoft Outlook) erreichbar.
+  Das Add-in ist ein reiner Zugangskanal zu derselben serverseitigen Verarbeitung — es
+  verarbeitet keine Daten bei Dritten. Auf dem Arbeitsplatzrechner speichert das Add-in
+  lediglich seine Verbindungsdaten (Server-Adresse, Zugangsdaten), lokal verschlüsselt
+  über den Windows-Schutzmechanismus DPAPI im Profil des angemeldeten Benutzers. Bezieht
+  der Betreiber die gerade in Outlook geöffnete E-Mail ausdrücklich in den Chat ein
+  (abschaltbarer „Mail einbeziehen"-Schalter, standardmäßig aus), werden deren Betreff,
+  Absender und Text wie eine Chat-Anfrage an den Server und von dort — pseudonymisiert
+  gemäß Ziffer 4 — an den KI-Dienst übermittelt.</p>
+  <p>Mit dieser Einwilligung stimmt der Betreiber ausdrücklich zu, dass für Chat-Anfragen
+  (inkl. der oben genannten Werkzeug-Ergebnisse) Inhalte an den KI-Dienst übermittelt
+  werden. <strong>Ein Versand ohne die oben beschriebene ausdrückliche Freigabe des
+  Betreibers findet nicht statt</strong> — unabhängig davon, was in einer Mail steht oder
+  welche Anweisung dort suggeriert wird; Inhalte von E-Mails werden strukturell als Daten
+  und niemals als Anweisung an den Chat behandelt.</p>
+
+  <h3>7. Automatische Abwesenheitsnotiz</h3>
+  <p>Der Betreiber kann für einen von ihm eingetragenen Zeitraum eine automatische
+  Abwesenheitsnotiz einschalten. Ist sie aktiv, erhalten Absender eingehender E-Mails eine
+  <strong>vom Betreiber selbst hinterlegte Textvorlage</strong>. Es wird
+  <strong>kein KI-generierter Text versandt</strong>; die Vorlage geht unverändert hinaus,
+  ergänzt lediglich um eine neutrale Anrede und Grußformel, falls diese fehlen. Ohne
+  hinterlegte Vorlage wird nichts versandt.</p>
+
+  <p>Damit niemand zweimal dieselbe Notiz erhält, wird je Zeitraum gespeichert, an welche
+  E-Mail-Adresse bereits geantwortet wurde. Diese Merkliste enthält
+  <strong>ausschließlich Adressen, keine Inhalte</strong>, und wird mit dem Ende des
+  Zeitraums gegenstandslos. Automatische Absender, Verteilerlisten,
+  Unzustellbarkeitsmeldungen und No-Reply-Adressen erhalten grundsätzlich keine Notiz.</p>
+
+  <p><strong>Vorprüfung durch den KI-Dienst.</strong> Damit die Notiz nicht an
+  Bestellbestätigungen, Rechnungen oder Werbe-E-Mails geht, wird je Nachricht geprüft, ob
+  dahinter ein Mensch steht. Dafür werden an den KI-Dienst übermittelt: der Betreff, ein
+  <strong>auf 180 Zeichen begrenzter Textanfang</strong> sowie die Absenderadresse in
+  <strong>teilweise pseudonymisierter Form</strong> — der Teil vor dem @-Zeichen ist ersetzt,
+  die Domain bleibt lesbar (Beispiel: <code>[EMAIL_1]@firma.de</code>). Der Anzeigename wird
+  nicht übermittelt. Die Domain ist erforderlich, um Firmen- von Privatabsendern zu
+  unterscheiden; ohne sie wurden Werbe-E-Mails nicht zuverlässig erkannt. Geprüft werden nur
+  Nachrichten, die im Abwesenheitszeitraum eingehen — nicht der gesamte Posteingang.</p>
+
+  <p>Der Betreiber kann diese Vorprüfung abschalten; dann erhalten alle Absender die Notiz
+  und es werden für diesen Zweck keine Daten an den KI-Dienst übermittelt.</p>
+
+  <h3>8. Rechtsgrundlagen</h3>
+  <ul>
+    <li>Einwilligung des Betreibers, Art. 6 Abs. 1 lit. a DSGVO (diese Zustimmung);</li>
+    <li>Vertragserfüllung/vorvertragliche Maßnahmen, Art. 6 Abs. 1 lit. b DSGVO;</li>
+    <li>berechtigtes Interesse an effizienter Kundenkommunikation, Art. 6 Abs. 1 lit. f DSGVO;</li>
+    <li>für Drittlandübermittlungen: Art. 44 ff. DSGVO i. V. m. SCC.</li>
+  </ul>
+
+  <h3>9. Speicherdauer und Löschung</h3>
+  <p>Zugangsdaten, Kontext- und Stil-Profil werden gespeichert, solange der jeweilige Agent
+  konfiguriert ist. Über die „Zurücksetzen"-Funktion des WebUI werden Konfiguration,
+  Kontext, Stil-Profil, der lokale Verarbeitungs-Status und der Verschlüsselungsschlüssel
+  gelöscht. Message-ID-Kennungen werden nur so lange vorgehalten, wie es zur Vermeidung von
+  Doppelverarbeitung nötig ist.</p>
+  <p><strong>Chat-Verlauf:</strong> Gespeicherte Chat-Sitzungen (Ziffer 3) werden nach
+  <strong>14 Tagen automatisch gelöscht</strong>. Unabhängig davon kann der Betreiber den
+  Verlauf jederzeit selbst über die Funktion „Verlauf zurücksetzen" löschen; dabei wird
+  auch die serverseitig gespeicherte Kopie entfernt, nicht nur die Anzeige im Fenster.
+  Vorübergehend hochgeladene Datei-Anhänge werden nach Verwendung bzw. nach kurzer Frist
+  gelöscht (Ziffer 6); Vorschaubilder werden nicht zusätzlich gespeichert.</p>
+
+  <h3>10. Empfänger und Auftragsverarbeitung (AVV)</h3>
+  <ul>
+    <li><strong>KI-Anbieter</strong> (Anthropic bzw. OpenAI/Google) als Auftragsverarbeiter —
+      AVV/DPA erforderlich für den tatsächlich genutzten Anbieter.</li>
+    <li><strong>Anbieter (Enver Shala)</strong> als Auftragsverarbeiter, soweit im Rahmen von
+      Einrichtung/Wartung/Support Zugriff auf personenbezogene Daten besteht — AVV mit dem
+      Betreiber, in dem die KI-Anbieter als Unter-Auftragsverarbeiter benannt sind.</li>
+  </ul>
+
+  <h3>11. Ihre Rechte</h3>
+  <p>Betroffene Personen haben das Recht auf Auskunft (Art. 15), Berichtigung (Art. 16),
+  Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit
+  (Art. 20) und Widerspruch (Art. 21) sowie das Recht auf Beschwerde bei einer
+  Aufsichtsbehörde (Art. 77). Zuständige Aufsichtsbehörde: [zuständige Landesbehörde].</p>
+
+  <h3>12. Datensicherheit</h3>
+  <p>Betrieb ausschließlich auf dem Server des Betreibers; Secrets verschlüsselt at-rest
+  (Fernet/AES) mit zugriffsbeschränkter Schlüsseldatei; kein automatischer Mailversand
+  (ein Versand aus dem Chat erfolgt ausschließlich nach vollständiger Vorschau und
+  ausdrücklicher, serverseitig erzwungener Freigabe des Betreibers, Ziffer 6, und ist
+  abschaltbar); reversible Pseudonymisierung strukturierter PII vor KI-Übermittlung
+  (Namen/Orte bleiben unmaskiert, siehe Ziffer 4; auf Bilder nicht anwendbar, siehe den
+  ehrlichen Hinweis in Ziffer 6). Löschende Postfach-Aktionen sind strukturell abgesichert:
+  die Standardordner (Posteingang, Entwürfe, Gesendet, Papierkorb, Spam, Archiv) sind gegen
+  Löschen und Umbenennen gesperrt, und beim Löschen eines Ordners werden dessen Nachrichten
+  zuvor in den Papierkorb verlagert — misslingt das, unterbleibt die Löschung. Der
+  Chat-Verlauf wird ausschließlich serverseitig gespeichert; im Browser liegt nur eine
+  inhaltsleere Sitzungskennung. Der Betreiber ist für die Absicherung seines Servers
+  (Zugriffsschutz, Backups, ggf. HTTPS-Reverse-Proxy) verantwortlich.</p>
+
+  <h3>13. Einwilligung und Widerruf</h3>
+  <p>Die Einwilligung ist freiwillig und kann jederzeit mit Wirkung für die Zukunft
+  widerrufen werden — z. B. durch Deaktivieren bzw. Löschen des Agenten oder Zurücksetzen
+  der Anwendung. Die Rechtmäßigkeit der bis zum Widerruf erfolgten Verarbeitung bleibt
+  unberührt.</p>
+
+  <h3>14. Kontakt</h3>
+  <p>Bei Fragen zum Datenschutz an den Verantwortlichen (Betreiber):
+  [Kontakt des Verantwortlichen]. Fragen zur Software/Verarbeitung an den Anbieter:
+  Enver Shala,
+  <a href="mailto:envershala1989@gmail.com">envershala1989@gmail.com</a>.</p>
+
+</div>

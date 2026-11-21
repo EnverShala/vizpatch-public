@@ -1,0 +1,318 @@
+{# ==========================================================================
+   Popup-Formular-Partial (UMBAU-D3): Bearbeiten- UND Anlege-Modus desselben
+   Formulars. Wird lazy per hx-get in #agent-dialog-body geladen (T-h9e-01 —
+   kein Vorab-Rendern aller Agenten-Formulare, Secrets bleiben maskiert).
+
+   `mode` ist entweder "edit" (agent_id gesetzt, Felder vorbefuellt) oder
+   "create" (agent_id leer, Felder leer + Namensfeld). KEIN {% extends %} —
+   dieses Partial hat kein eigenes base.html-Erbe.
+   ========================================================================== #}
+<form action="/save" method="post" id="agent-config-form">
+  <input type="hidden" name="agent_id" id="active-agent-id" value="{{ agent_id }}">
+
+  {% if mode == 'create' %}
+  <label for="new_agent_name">Name des neuen Agenten</label>
+  <input type="text" id="new_agent_name" name="new_agent_name" required placeholder="z. B. Muster GmbH oder info@muster-gmbh.de">
+  <p class="hint">Wird beim Speichern zu einem eindeutigen internen Kennzeichen (Slug) umgewandelt.</p>
+  {% endif %}
+
+  <fieldset id="sec-imap">
+    <legend>IMAP-Zugang</legend>
+
+    <label for="imap_user">E-Mail-Adresse (IMAP_USER)</label>
+    <input type="email" id="imap_user" name="imap_user" value="{{ env.IMAP_USER or '' }}" {% if mode == 'edit' %}required{% endif %}>
+    <p class="hint">Wird gleichzeitig als Own-Sender-Filter genutzt (verhindert dass der Agent auf eigene Ausgangs-Mails antwortet).</p>
+
+    <p class="password-hint">&#9432; Passwort- und API-Key-Felder: leer lassen um bestehenden Wert zu behalten. Neuen Wert eintragen um zu überschreiben.</p>
+
+    <label for="imap_password">IMAP-Passwort (IMAP_PASSWORD)</label>
+    <input type="password" id="imap_password" name="imap_password" value="" placeholder="**** (leer lassen = unverändert)">
+
+    <button type="button" class="btn-test-conn" onclick="testConnection('imap', this)">IMAP-Verbindung testen</button>
+    <p class="test-result" id="imap-test-result" role="status" aria-live="polite"></p>
+
+    {% set drafts_source = drafts_status.detection_source if drafts_status else None %}
+    {% if drafts_source == 'unresolved' %}
+    <div class="banner-error">
+      &#9888; Kein Drafts-Ordner gefunden — Server hat keinen \Drafts-markierten Ordner announciert und die Provider-Tabelle deckt diese Domain nicht ab. Bitte manuell setzen:
+    </div>
+    <label for="imap_drafts_folder">Drafts-Ordner (IMAP_DRAFTS_FOLDER)</label>
+    <input type="text" id="imap_drafts_folder" name="imap_drafts_folder" value="{{ env.IMAP_DRAFTS_FOLDER or '' }}" placeholder="z. B. Drafts, Entwürfe, INBOX.Drafts">
+    {% elif drafts_source in ('special-use', 'provider') %}
+    <p class="hint">
+      &#10003; <strong>Drafts-Ordner automatisch erkannt:</strong> <code>{{ drafts_status.drafts_folder }}</code>
+      {% if drafts_source == 'special-use' %}(via IMAP SPECIAL-USE-Flag){% else %}(Provider-Default){% endif %}
+    </p>
+    {% elif drafts_source == 'explicit' or env.IMAP_DRAFTS_FOLDER %}
+    <label for="imap_drafts_folder">Drafts-Ordner (IMAP_DRAFTS_FOLDER, manuell gesetzt)</label>
+    <input type="text" id="imap_drafts_folder" name="imap_drafts_folder" value="{{ env.IMAP_DRAFTS_FOLDER or drafts_status.drafts_folder or '' }}">
+    <p class="hint">Leer lassen um Auto-Discovery wieder zu aktivieren.</p>
+    {% else %}
+    <p class="hint">Drafts-Ordner wird beim ersten Poll automatisch erkannt (IMAP SPECIAL-USE oder Provider-Tabelle).</p>
+    {% endif %}
+  </fieldset>
+
+  <fieldset id="sec-llm">
+    <legend>LLM-API-Key</legend>
+    <p class="password-hint">&#9432; API-Key leer lassen um bestehenden Wert zu behalten. Neuen Wert eintragen um zu überschreiben.</p>
+    <label for="llm_api_key">API-Key (Anthropic / OpenAI / Google)</label>
+    <input type="password" id="llm_api_key" name="llm_api_key" value="" placeholder="**** (leer lassen = unverändert)" oninput="updateProviderHint(this.value)">
+
+    <p class="hint" id="provider-detected">
+      {% if env.LLM_PROVIDER == 'anthropic' %}Erkannter LLM-Provider: Anthropic
+      {% elif env.LLM_PROVIDER == 'openai' %}Erkannter LLM-Provider: OpenAI
+      {% elif env.LLM_PROVIDER == 'google' %}Erkannter LLM-Provider: Google
+      {% else %}Noch kein Key gespeichert{% endif %}
+    </p>
+
+    <button type="button" class="btn-test-conn" onclick="testConnection('llm', this)">API-Verbindung testen</button>
+    <p class="test-result" id="llm-test-result" role="status" aria-live="polite"></p>
+
+    <p class="hint avv-hint" id="avv-anthropic" {% if env.LLM_PROVIDER != 'anthropic' %}style="display:none"{% endif %}>
+      AVV-Hinweis (Anthropic): Anthropic bietet einen Auftragsverarbeitungsvertrag (AVV/DPA) inkl. Zero-Data-Retention-Option für die API an — vor produktivem Einsatz abschließen.
+    </p>
+    <p class="hint avv-hint" id="avv-openai" {% if env.LLM_PROVIDER != 'openai' %}style="display:none"{% endif %}>
+      AVV-Hinweis (OpenAI): OpenAI bietet ebenfalls einen AVV/DPA für die API an — vor produktivem Einsatz abschließen und Data-Retention-Einstellungen prüfen.
+    </p>
+    <p class="hint avv-hint" id="avv-google" {% if env.LLM_PROVIDER != 'google' %}style="display:none"{% endif %}>
+      AVV-Hinweis (Google): Google bietet für die Gemini-API einen AVV/DPA an — vor produktivem Einsatz abschließen und Data-Retention-Einstellungen prüfen.
+    </p>
+  </fieldset>
+
+  <fieldset id="sec-context">
+    <legend>context.md — Firmen-Kontext für den KI-Agenten</legend>
+    <p class="hint">Wird bei jeder E-Mail-Klassifikation und -Beantwortung in den Prompt injiziert. Öffnungszeiten, Angebote, Ton, FAQ.</p>
+
+    {% if mode == 'edit' %}
+    <details class="ki-helper">
+      <summary>Vorschlag von KI generieren lassen (optional)</summary>
+      <label for="firma_input">Kurzbeschreibung der Firma</label>
+      <textarea id="firma_input" rows="4" maxlength="5000" placeholder="z. B.: Muster GmbH, Elektro-Fachbetrieb mit Werkstatt, Öffnungszeiten Mo–Fr 08–18 Uhr, freundlich-professioneller Ton"></textarea>
+      <button type="button" id="ki-gen-btn" onclick="generateContext(this)">KI-Vorschlag generieren und unten einfügen</button>
+      <p class="banner-warning" id="ki-hint" style="display:none">&#9888; KI-Draft — bitte Öffnungszeiten und Preise manuell prüfen!</p>
+    </details>
+    {% endif %}
+
+    <label for="context_md">context.md-Inhalt (wird gespeichert)</label>
+    <textarea id="context_md" name="context_md" rows="20">{{ context_md }}</textarea>
+  </fieldset>
+
+  <fieldset id="sec-style">
+    <legend>Schreibstil (style.md)</legend>
+    <p class="hint">
+      Wird bei jedem Draft zusätzlich zu context.md injiziert — bestimmt nur WIE geschrieben wird
+      (Anrede, Du/Sie, Grußformel, Satzlänge, Formalität, typische Wendungen), niemals WAS fachlich
+      gesagt wird. Entsteht automatisch beim ersten Speichern gültiger Zugangsdaten oder per Klick
+      auf „Schreibstil neu lernen" unten.
+    </p>
+
+    <label>
+      <input type="checkbox" name="enable_style_adaption" value="true" {% if env.ENABLE_STYLE_ADAPTION != 'false' %}checked{% endif %}>
+      Schreibstil-Adaption aktiv (Default an)
+    </label>
+
+    <label for="style_note">Stil-Beschreibung (optional)</label>
+    <textarea id="style_note" name="style_note" rows="3" maxlength="5000" placeholder="Optional: Schreibstil kurz beschreiben oder Beispiel einfügen — vor allem für neue/leere Postfächer">{{ style_note }}</textarea>
+
+    <label for="style_md">style.md-Inhalt (wird gespeichert)</label>
+    <textarea id="style_md" name="style_md" rows="16">{{ style_md }}</textarea>
+
+    {% if mode == 'edit' %}
+    <button type="button" id="style-relearn-btn" onclick="relearnStyle(this)">Schreibstil neu lernen</button>
+    <p class="hint" id="style-relearn-hint" style="display:none">&#9888; Analysiert die letzten gesendeten Mails + die Stil-Beschreibung neu und überschreibt style.md oben.</p>
+    {% endif %}
+  </fieldset>
+
+  <fieldset id="sec-vorlagen">
+    <legend>Vorlagen (vorlagen.md)</legend>
+    <p class="hint">
+      Wiederkehrende Formulierungen, die der Chat-Agent auf Zuruf verwenden kann („antworte wie
+      immer bei Terminanfragen"). Eine Vorlage je Abschnitt, Überschrift mit zwei Rauten —
+      der Name in der Überschrift ist der Name, unter dem du sie ansprichst. Der Agent nimmt
+      sie als Ausgangspunkt und passt sie an den Fall an, er sendet sie nicht wörtlich.
+    </p>
+
+    <label for="vorlagen_md">vorlagen.md-Inhalt (wird gespeichert)</label>
+    <textarea id="vorlagen_md" name="vorlagen_md" rows="12" placeholder="## Terminanfrage&#10;Vielen Dank für Ihre Anfrage. Wir haben folgenden Termin frei: ...&#10;&#10;## Reklamation&#10;Das tut uns leid. Bitte schicken Sie uns ...">{{ vorlagen_md }}</textarea>
+  </fieldset>
+
+  <fieldset id="sec-draft">
+    <legend>Automatische Entwürfe</legend>
+    <p class="hint">
+      Ist dies deaktiviert, klassifiziert der Agent eingehende Mails weiterhin, erzeugt aber KEINE
+      Antwort-Entwürfe im Drafts-Ordner. Nützlich für Postfächer, die nur beobachtet werden sollen
+      (spart zudem den teuren Draft-Aufruf beim KI-Anbieter).
+    </p>
+
+    {# Verborgener Marker: wird beim Abschicken IMMER gesendet und signalisiert dem
+       /save-Endpoint, dass diese Section Teil des Formulars war. Ohne ihn ließe sich
+       die Funktion nicht ausschalten — eine nicht angehakte Checkbox sendet nichts. #}
+    <input type="hidden" name="draft_section_submitted" value="1">
+
+    <label>
+      <input type="checkbox" name="enable_draft_creation" value="true" {% if env.ENABLE_DRAFT_CREATION != 'false' %}checked{% endif %}>
+      Automatische Entwürfe erstellen (Default an)
+    </label>
+  </fieldset>
+
+  <fieldset id="sec-intelligenz">
+    <legend>Intelligenz-Modus</legend>
+    <p class="hint">
+      Wie genau der Agent hinsieht. <strong>Wirkt auf drei Dinge:</strong> das Erkennen, ob eine
+      Mail eine Kundenanfrage ist; das automatische Einsortieren; und den Filter, der im Urlaub
+      Automatenpost von echten Menschen unterscheidet. Zusätzlich werden die Antwort-Entwürfe
+      mit dem stärksten verfügbaren Modell geschrieben.
+    </p>
+    <p class="hint">
+      <strong>„Hoch" verbraucht mehr Tokens und kostet damit mehr beim KI-Anbieter.</strong>
+      Bei einem einzelnen Postfach sind das üblicherweise Cent-Beträge im Monat, bei sehr viel
+      Mailverkehr entsprechend mehr. Der Modus ändert <em>nicht</em>, ob überhaupt gesendet,
+      sortiert oder geantwortet wird — das entscheiden weiterhin die Schalter darüber und darunter.
+    </p>
+
+    {# Verborgener Marker wie in den Sections oberhalb: ein Select sendet zwar immer
+       einen Wert, aber der Marker hält das Muster einheitlich und macht sichtbar,
+       welche Section abgeschickt wurde. #}
+    <input type="hidden" name="intelligenz_section_submitted" value="1">
+
+    <label for="intelligenz_modus">Modus</label>
+    <select id="intelligenz_modus" name="intelligenz_modus">
+      <option value="standard" {% if env.INTELLIGENZ_MODUS != 'hoch' %}selected{% endif %}>
+        Standard — schnell und günstig (Default)
+      </option>
+      <option value="hoch" {% if env.INTELLIGENZ_MODUS == 'hoch' %}selected{% endif %}>
+        Hohe Intelligenz — genauer, mehr Tokenverbrauch
+      </option>
+    </select>
+  </fieldset>
+
+  <fieldset id="sec-auto-sort">
+    <legend>Automatisches Einsortieren</legend>
+    <p class="hint">
+      Sortiert bereits GELESENE Mails inhaltlich nach den unten genannten Kategorien ein — oder
+      markiert sie als wichtig, wenn sie liegen bleiben sollen. Ungelesene Mails bleiben davon
+      IMMER unangetastet im Posteingang, bis du sie gesehen hast. Jede Aktion landet im
+      Aktions-Journal und ist über den Chat rückgängig zu machen bzw. nachzuvollziehen
+      ("was hast du heute automatisch weggeräumt?").
+    </p>
+
+    <label for="sortierregeln_md">sortierregeln.md-Inhalt (wird gespeichert)</label>
+    <textarea id="sortierregeln_md" name="sortierregeln_md" rows="10" placeholder="## Rechnungen&#10;Aktion: verschieben&#10;Ziel: Rechnungen&#10;&#10;## Notfälle&#10;Aktion: markieren">{{ sortierregeln_md }}</textarea>
+    <p class="hint">
+      Je Kategorie eine Überschrift mit zwei Rauten, darunter <code>Aktion: verschieben</code>
+      (braucht ein <code>Ziel:</code>) oder <code>Aktion: markieren</code> (hebt die Mail im
+      Posteingang hervor, bewegt nichts).
+    </p>
+
+    {# Verborgener Marker: wird beim Abschicken IMMER gesendet, siehe draft_section_submitted
+       oben — ohne ihn ließen sich beide Checkboxen über die WebUI nie ausschalten. #}
+    <input type="hidden" name="auto_sort_section_submitted" value="1">
+
+    <label>
+      <input type="checkbox" name="enable_auto_sort" value="true" {% if env.ENABLE_AUTO_SORT == 'true' %}checked{% endif %}>
+      Automatisches Einsortieren aktivieren (Default aus)
+    </label>
+    <label>
+      <input type="checkbox" name="auto_sort_dry_run" value="true" {% if env.AUTO_SORT_DRY_RUN != 'false' %}checked{% endif %}>
+      Probelauf — nur protokollieren, nichts bewegen (Default an)
+    </label>
+  </fieldset>
+
+  <fieldset id="sec-urlaub">
+    <legend>Urlaubs-Autoantwort</legend>
+    <p class="hint">
+      <strong>Die einzige Funktion, die selbstständig Mails VERSCHICKT.</strong> Alles andere im
+      Produkt legt nur Entwürfe an. Im eingetragenen Zeitraum antwortet der Agent auf neue Mails
+      automatisch mit dem Abschnitt <code>## Urlaub</code> aus den Vorlagen oben — jedem Absender
+      genau EINMAL pro Urlaub, nie an Newsletter, Automaten oder No-Reply-Adressen, und nie auf
+      Mails, in denen dein Postfach nur im Kopie-Feld steht.
+    </p>
+    <p class="hint">
+      Fehlt der Abschnitt <code>## Urlaub</code> in den Vorlagen, wird NICHTS gesendet — es wird
+      kein Ersatztext erfunden.
+    </p>
+
+    {# Verborgener Marker wie bei den beiden Sections oberhalb: ohne ihn ließen sich die
+       Checkboxen über die WebUI nie ausschalten (eine nicht angehakte Checkbox sendet nichts). #}
+    <input type="hidden" name="urlaub_section_submitted" value="1">
+
+    <label for="urlaub_von">Urlaub von (JJJJ-MM-TT)</label>
+    <input type="date" id="urlaub_von" name="urlaub_von" value="{{ env.URLAUB_VON or '' }}">
+
+    <label for="urlaub_bis">Urlaub bis (JJJJ-MM-TT, einschließlich)</label>
+    <input type="date" id="urlaub_bis" name="urlaub_bis" value="{{ env.URLAUB_BIS or '' }}">
+
+    <label>
+      <input type="checkbox" name="enable_urlaubsantwort" value="true" {% if env.ENABLE_URLAUBSANTWORT == 'true' %}checked{% endif %}>
+      Urlaubs-Autoantwort aktivieren (Default aus)
+    </label>
+    <label>
+      <input type="checkbox" name="urlaub_dry_run" value="true" {% if env.URLAUB_DRY_RUN != 'false' %}checked{% endif %}>
+      Probelauf — es wird NICHTS verschickt (Haken entfernen zum Scharfschalten, Default an)
+    </label>
+    <p class="hint">
+      Empfehlung: erst mit Probelauf laufen lassen und im Log nachsehen, wer eine Antwort bekommen
+      hätte. Erst danach den Haken entfernen.
+    </p>
+
+    {# Der Haken allein sagt nicht, ob gerade geantwortet wird: nach dem letzten
+       Urlaubstag bleibt er stehen und greift trotzdem nicht mehr. Ohne diese
+       Zeile liest das Formular wie „ist an“, obwohl der Urlaub vorbei ist. #}
+    {% if urlaub_lage == 'laeuft' %}
+    <p class="hint" style="color:#b22222"><strong>&#9679; Läuft gerade</strong> — der Agent
+      antwortet zurzeit selbstständig auf neue Mails.</p>
+    {% elif urlaub_lage == 'vorbei' %}
+    <p class="hint">Der eingetragene Urlaub ist vorbei — es geht nichts mehr hinaus. Der Haken
+      wirkt erst wieder, wenn du einen neuen Zeitraum einträgst; der Agent hört von selbst auf.</p>
+    {% elif urlaub_lage == 'spaeter' %}
+    <p class="hint">Eingetragen, aber noch nicht begonnen — die Autoantwort läuft am Von-Datum
+      von selbst an.</p>
+    {% elif urlaub_lage == 'unvollstaendig' %}
+    <p class="hint" style="color:#b22222">Aktiviert, aber ohne brauchbaren Zeitraum — so greift
+      die Autoantwort nie.</p>
+    {% endif %}
+  </fieldset>
+
+  <fieldset id="sec-datenschutz">
+    <legend>Datenschutz</legend>
+    <details id="privacy-details">
+      <summary>Datenschutzbestimmungen</summary>
+      {% include "_datenschutz.html" %}
+    </details>
+
+    <label>
+      <input type="checkbox" name="privacy_consent" value="on" required {% if privacy_consent_accepted %}checked{% endif %}>
+      Ich stimme den <a href="/datenschutz" target="_blank" rel="noopener">Datenschutzbestimmungen</a> zu
+    </label>
+    {% if privacy_consent_accepted %}
+    <p class="hint">&#10003; Zugestimmt am {{ privacy_consent_at | localzeit }}</p>
+    {% endif %}
+  </fieldset>
+
+  <button type="submit" class="btn-save-all">Speichern</button>
+</form>
+
+{% if mode == 'edit' %}
+<details class="agent-manage-details">
+  <summary>Agent umbenennen</summary>
+  <form action="/agents/{{ agent_id }}/rename" method="post" class="agent-rename-form">
+    <label for="new_name">Neuer Name</label>
+    <input type="text" id="new_name" name="new_name" required>
+    <button type="submit" class="btn-rename">Umbenennen</button>
+  </form>
+</details>
+<details class="agent-manage-details agent-delete-details">
+  <summary>Agent löschen</summary>
+  <form action="/agents/{{ agent_id }}/delete" method="post">
+    {# confirmation bleibt serverseitig Pflicht (delete_agent_endpoint prüft == 'LÖSCHEN');
+       das früher nötige Eintippen ist durch die Ja/Nein-Bestätigung darunter ersetzt. #}
+    <input type="hidden" name="confirmation" value="LÖSCHEN">
+    <p class="delete-confirm-frage">Sind Sie sich sicher, dass Sie diesen Agenten löschen möchten?</p>
+    <p class="hint">Dies kann nicht rückgängig gemacht werden.</p>
+    <div class="delete-confirm-actions">
+      <button type="submit" class="btn-danger">Ja, löschen</button>
+      <button type="button" class="btn-cancel" onclick="this.closest('details').removeAttribute('open');">Nein</button>
+    </div>
+  </form>
+</details>
+{% endif %}

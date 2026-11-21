@@ -1,0 +1,53 @@
+# Add-in-Tests auf einem GitHub-Windows-Runner (Phase 15, CI-08).
+#
+# Gebaut und getestet wird nur VizpatchAddin.Tests (Core-Logik, net48, xUnit,
+# ohne Outlook). Das VSTO-Projekt selbst ist auf dem Runner nicht baubar; die
+# gemessene Begruendung steht in docs/ci.md, Abschnitt Add-in.
+#
+# Windows-Minuten kosten im privaten Repo das Doppelte, daher laeuft der Job nur
+# bei Aenderungen unter outlook-addin/ oder an dieser Datei (und manuell).
+name: Add-in
+
+on:
+  push:
+    paths: ['outlook-addin/**', '.github/workflows/addin.yml']
+  pull_request:
+    paths: ['outlook-addin/**', '.github/workflows/addin.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: addin-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  addin:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: MSBuild finden
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          if (-not (Test-Path $vswhere)) { Write-Error 'vswhere.exe fehlt'; exit 1 }
+          $msbuild = & $vswhere -latest -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if (-not $msbuild) { Write-Error 'MSBuild nicht gefunden'; exit 1 }
+          "MSBUILD=$msbuild" >> $env:GITHUB_ENV
+          Write-Host "MSBuild: $msbuild"
+
+      - name: Core-Tests
+        run: |
+          & $env:MSBUILD outlook-addin/VizpatchAddin.Tests/VizpatchAddin.Tests.csproj -t:restore -p:Configuration=Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet test outlook-addin/VizpatchAddin.Tests/VizpatchAddin.Tests.csproj -c Release --logger "console;verbosity=normal" 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP\addin-tests.log"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # dotnet test meldet "No test is available" mit Exit 0 - das waere ein falsches Gruen.
+          if (-not (Select-String -Path "$env:RUNNER_TEMP\addin-tests.log" -Pattern 'Test Run Successful' -Quiet)) { Write-Error 'Keine ausgefuehrten Tests im Log'; exit 1 }

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vizpatch WebUI</title>
+  <link rel="icon" type="image/png" href="/static/vizpatch_emblem.png">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body hx-on::response-error="if (event.detail.xhr.status === 401) location.reload();">
+  <header class="site-header">
+    <img src="/static/vizpatch_logo.png" alt="Vizpatch &mdash; E-Mail AI Agent" class="site-logo">
+    {% block header_nav %}{% endblock %}
+  </header>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  <script src="/static/htmx.min.js"></script>
+  <script>
+    /* Höhe des sticky Kopfbereichs (Logo + Menü) messen und als CSS-Variable
+     * bereitstellen, damit Anker-Sprünge nicht hinter dem Header landen. */
+    (function () {
+      function updateStickyOffset() {
+        var h = document.querySelector('.site-header');
+        if (h) document.documentElement.style.setProperty('--sticky-h', h.offsetHeight + 'px');
+      }
+      window.addEventListener('load', updateStickyOffset);
+      window.addEventListener('resize', updateStickyOffset);
+      updateStickyOffset();
+    })();
+  </script>
+</body>
+</html>

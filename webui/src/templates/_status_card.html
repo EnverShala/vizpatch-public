@@ -1,0 +1,71 @@
+<div id="status-card" hx-get="/agents/status" hx-trigger="every 30s" hx-swap="outerHTML">
+  <h3>Übersicht</h3>
+
+  {# Autostart-Umschalter, Passwort ändern und Abmelden sind in die Kopfleiste
+     unter dem Logo gewandert (index.html header_nav) — hier bleibt nur die
+     Agenten-Übersicht + Neuer-Agent-Button. #}
+  <p class="container-status">
+    Container-Status:
+    {% if service_status.state == "running" %}
+    <span class="state-running">Aktiv</span>
+    {% else %}
+    <span class="state-exited">Inaktiv</span>
+    {% endif %}
+  </p>
+
+  <button type="button" id="btn-new-agent" hx-get="/agents/new" hx-target="#agent-dialog-body" hx-swap="innerHTML">+ Neuer Agent</button>
+
+  {% if agent_statuses %}
+  <table class="agent-status-table">
+    <thead>
+      <tr>
+        <th>Chat</th>
+        <th>Agent</th>
+        <th>Status</th>
+        <th>Letzter Poll</th>
+        <th>Fehler</th>
+        <th>Aktion</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for agent in agent_statuses %}
+      <tr>
+        <td>
+          <input type="radio" name="chat-agent" value="{{ agent.id }}" {% if agent.id == agent_id %}checked{% endif %}
+                 hx-get="/chat/{{ agent.id }}/panel" hx-target="#chat-panel" hx-swap="innerHTML" hx-trigger="change">
+        </td>
+        <td>
+          <button type="button" class="agent-edit-link" hx-get="/agents/{{ agent.id }}/edit" hx-target="#agent-dialog-body" hx-swap="innerHTML">{{ agent.id }}</button>
+        </td>
+        <td>
+          {% if agent.enabled %}
+          <span class="state-running">Aktiv</span>
+          {% else %}
+          <span class="state-exited">Inaktiv</span>
+          {% endif %}
+        </td>
+        <td>{% if agent.last_poll %}{{ agent.last_poll | localzeit }}{% else %}keine Daten{% endif %}</td>
+        <td>
+          {% if agent.status_json and agent.status_json.error %}
+          <span class="state-error">{{ agent.status_json.error }}</span>
+          {% endif %}
+        </td>
+        <td class="agent-buttons">
+          {% if agent.enabled %}
+          <button hx-post="/agents/{{ agent.id }}/stop" hx-target="#status-card" hx-swap="outerHTML">Stop</button>
+          {% else %}
+          <button hx-post="/agents/{{ agent.id }}/start" hx-target="#status-card" hx-swap="outerHTML">Start</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="hint">Noch keine Agenten angelegt.</p>
+  {% endif %}
+
+  {% if action_result is defined %}
+  <pre class="action-result">{{ action_result }}</pre>
+  {% endif %}
+</div>

@@ -1,0 +1,804 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #1a1a1a;
+  /* Etwas dunkler als die grauen Panels (#f5f5f5), damit Kopf- und Inhalts-
+   * Container sich klar abheben (Staffelung: Seite -> Panel -> weiße Karten). */
+  background: #e6e8ec;
+  margin: 0;
+  padding: 0;
+}
+
+/* Kopfbereich: statt blauer Navbar das Vizpatch-Logo, mittig und exakt so breit
+ * wie die weißen Content-Container (gleiche max-width + horizontale Polsterung
+ * wie .container). Logo UND Menü bleiben gemeinsam sticky oben stehen. */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #f5f5f5;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0.75rem 1rem;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.07);
+}
+
+.site-logo {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
+/* Sanftes Scrollen für die Sprungnavigation */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Kopfleiste unter dem Logo (im sticky Kopfbereich): dreigeteilt —
+ * links Abmelden + Passwort ändern, mittig Autostart, rechts DE/EN-Schalter. */
+.header-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.6rem;
+}
+
+.header-bar-left {
+  display: flex;
+  gap: 0.5rem;
+  flex: 1;
+  justify-content: flex-start;
+}
+
+.header-bar-center {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+}
+
+.header-bar-right {
+  display: flex;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.header-bar .logout-form {
+  margin: 0;
+}
+
+/* Abmelden + Passwort ändern: bewusst identische Optik ("beide gleich") —
+ * beide im dunkelblauen Stil (wie der urspruengliche Abmelden-Submit-Button).
+ * In .header-bar gescopt (Spezifitaet 0,2,0), damit die Regel gegen die
+ * generische `button[type="submit"]` (0,1,1) sicher gewinnt und beide Buttons
+ * (submit + type=button) exakt gleich aussehen. */
+.header-bar .btn-header {
+  display: inline-block;
+  box-sizing: border-box;
+  height: 38px;
+  line-height: 1.2;
+  white-space: nowrap;   /* "Passwort ändern" bleibt einzeilig → keine abgeschnittene 2. Zeile */
+  background: #1e3a5f;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 0.9rem;
+  margin: 0;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.header-bar .btn-header:hover,
+.header-bar .btn-header:focus {
+  background: #2a5080;
+  color: #fff;
+}
+
+/* DE/EN-Sprachschalter — vorerst reiner Platzhalter (disabled, keine Funktion). */
+.lang-switch {
+  display: inline-flex;
+  border: 1px solid #d0d7e2;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.lang-opt {
+  background: #fff;
+  border: none;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #6c757d;
+  cursor: default;
+}
+
+.lang-opt.is-active {
+  background: #1e3a5f;
+  color: #fff;
+}
+
+/* Sprungnavigation (Alt-Rest, aktuell ungenutzt): zentrierte Pill-Links */
+.section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.section-nav a {
+  display: inline-block;
+  padding: 0.35rem 0.85rem;
+  background: #fff;
+  border: 1px solid #d0d7e2;
+  border-radius: 999px;
+  color: #1e3a5f;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.section-nav a:hover,
+.section-nav a:focus {
+  background: #1e3a5f;
+  border-color: #1e3a5f;
+  color: #fff;
+}
+
+/* Anker-Ziele beim Springen unter dem sticky Kopfbereich absetzen (Höhe wird per
+ * JS in --sticky-h gemessen; 200px als Fallback vor dem ersten Messen). */
+[id^="sec-"] {
+  scroll-margin-top: calc(var(--sticky-h, 200px) + 0.75rem);
+}
+
+/* Agentenübersicht (#status-card) und Agent-Bereich (.agent-picker) als weiße
+ * Container wie die fieldset-Abschnitte (z. B. WebUI-Login). */
+#status-card,
+.agent-picker {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+#status-card h3,
+.agent-picker h2 {
+  margin-top: 0;
+  color: #1e3a5f;
+}
+
+/* Container-Status-Zeile über der Agenten-Tabelle */
+.container-status {
+  margin: 0 0 1rem;
+  font-weight: 500;
+}
+
+/* Autostart-Umschalter (in der Kopfleiste unter dem Logo, mittig).
+ * Zeigefinger auf Checkbox + Schriftzug; der Hinweis liegt als title-Tooltip an. */
+.autostart-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.autostart-toggle input {
+  cursor: pointer;
+}
+
+/* Agenten-Tabelle: randlos ("unsichtbar"), großzügiger Spalten-Gap über Zell-
+ * Polsterung, bündig mit dem Container-Innenrand. */
+.agent-status-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.agent-status-table th,
+.agent-status-table td {
+  border: none;
+  padding: 0.55rem 1.1rem;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.agent-status-table th {
+  color: #666;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.agent-status-table th:first-child,
+.agent-status-table td:first-child {
+  padding-left: 0;
+}
+
+.agent-status-table th:last-child,
+.agent-status-table td:last-child {
+  padding-right: 0;
+}
+
+/* Status-Farben */
+.state-running {
+  color: #1a7f37;
+  font-weight: 600;
+}
+
+.state-exited {
+  color: #6c757d;
+}
+
+.state-error {
+  color: #c82333;
+}
+
+/* Start/Stop-Button in der Aktion-Spalte */
+.agent-buttons button {
+  background: #1e3a5f;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.agent-buttons button:hover {
+  background: #2a5080;
+}
+
+/* Gesamter Inhalt (Agentenübersicht bis Danger Zone) in EINEM grauen Container,
+ * gleiche Breite + Optik wie der Logo/Menü-Kopfbereich — die weißen fieldset-
+ * Karten heben sich darin ab. Optisch: oben ein Panel (Logo/Menü), unten ein
+ * gleich breites Panel (Inhalt). */
+.container {
+  max-width: 720px;
+  margin: 1.5rem auto 2rem;
+  padding: 1.25rem;
+  background: #f5f5f5;
+  border-radius: 8px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.07);
+}
+
+fieldset {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  background: #fff;
+}
+
+legend {
+  font-weight: 600;
+  padding: 0 0.5rem;
+  color: #1e3a5f;
+}
+
+label {
+  display: block;
+  font-weight: 500;
+  margin-top: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+input[type="email"],
+input[type="text"],
+input[type="password"],
+textarea {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+textarea {
+  min-height: 300px;
+  resize: vertical;
+}
+
+input[type="checkbox"] {
+  margin-right: 0.5rem;
+}
+
+button[type="submit"] {
+  display: block;
+  background: #1e3a5f;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  cursor: pointer;
+  margin-top: 1rem;
+}
+
+button[type="submit"]:hover {
+  background: #2a5080;
+}
+
+.banner-success {
+  background: #d4edda;
+  border: 1px solid #28a745;
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.5rem;
+  color: #155724;
+  font-weight: 500;
+}
+
+.password-hint {
+  font-size: 0.85rem;
+  color: #856404;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+  padding: 0.4rem 0.75rem;
+  margin: 0.5rem 0;
+}
+
+.hint {
+  font-size: 0.82rem;
+  color: #666;
+  margin: 0.25rem 0 0;
+}
+
+code {
+  background: #f0f0f0;
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+.banner-warning {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  color: #856404;
+  font-weight: 500;
+}
+
+.seed-section {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.seed-section h2 {
+  margin: 0 0 1rem;
+  color: #1e3a5f;
+  font-size: 1.1rem;
+}
+
+.htmx-indicator {
+  display: none;
+  margin-left: 0.5rem;
+}
+
+.htmx-request .htmx-indicator {
+  display: inline;
+}
+
+.agent-buttons button[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #ccc;
+}
+
+/* "Agent umbenennen" / "Agent löschen" (index.html, .agent-picker) sind reine
+ * <details><summary>-Aufklapper ohne eigene Klasse — nicht alle Browser geben
+ * <summary> per UA-Default einen Zeigefinger-Cursor, daher hier gezielt gesetzt
+ * (analog details.ki-helper/.danger-zone details weiter unten in dieser Datei). */
+.agent-picker details summary {
+  cursor: pointer;
+}
+
+/* „Verbindung testen"-Buttons (IMAP/LLM) im Agent-Formular: dezenter
+ * Sekundär-Button direkt unter dem jeweiligen Eingabefeld, klar vom großen
+ * „Speichern"-Primärbutton abgesetzt. */
+.btn-test-conn {
+  display: inline-block;
+  margin-top: 0.5rem;
+  background: #eef1f5;
+  color: #1e3a5f;
+  border: 1px solid #ccd3de;
+  border-radius: 4px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.btn-test-conn:hover {
+  background: #dde3ec;
+}
+
+.btn-test-conn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+/* Ergebniszeile des Verbindungstests — kurz, farbcodiert, unter dem Feld.
+ * Leer (kein Test gelaufen) = unsichtbar, damit kein Layout-Sprung entsteht. */
+.test-result {
+  font-size: 0.82rem;
+  margin: 0.35rem 0 0;
+  min-height: 1em;
+}
+
+.test-result:empty {
+  display: none;
+}
+
+.test-result.test-ok {
+  color: #155724;
+}
+
+.test-result.test-fail {
+  color: #b22222;
+  font-weight: 500;
+}
+
+.config-warning {
+  background: #fff3cd;
+  border-left: 4px solid #ffc107;
+  padding: 0.6rem 0.9rem;
+  margin: 0.75rem 0;
+  color: #856404;
+  font-size: 0.9rem;
+}
+
+.banner-error {
+  background: #f8d7da;
+  border: 1px solid #dc3545;
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.5rem;
+  color: #721c24;
+  font-weight: 500;
+}
+
+.hint-inline {
+  font-weight: normal;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+details.ki-helper {
+  margin: 0.75rem 0 1rem;
+  padding: 0.5rem 0.75rem;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+}
+
+details.ki-helper summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: #1e3a5f;
+  padding: 0.25rem 0;
+}
+
+details.ki-helper[open] summary {
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid #dee2e6;
+}
+
+details.ki-helper textarea {
+  min-height: 100px;
+}
+
+details.ki-helper button {
+  background: #1e3a5f;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+
+details.ki-helper button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.danger-zone {
+  background: #fff5f5;
+  border: 2px solid #dc3545;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin: 2rem 0 1.5rem;
+}
+
+.danger-zone h2 {
+  margin: 0 0 0.5rem;
+  color: #dc3545;
+  font-size: 1.1rem;
+}
+
+.danger-zone p {
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+  color: #5a2a2a;
+}
+
+.danger-zone details {
+  margin-top: 0.75rem;
+}
+
+.danger-zone details summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: #dc3545;
+  padding: 0.25rem 0;
+}
+
+.danger-zone details[open] summary {
+  margin-bottom: 0.75rem;
+}
+
+.btn-danger {
+  background: #dc3545;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.6rem 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+
+.btn-danger:hover {
+  background: #c82333;
+}
+
+.section-save {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed #dee2e6;
+}
+
+.btn-section-save {
+  background: #6c757d;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.btn-section-save:hover {
+  background: #545b62;
+}
+
+.save-inline-msg {
+  font-size: 0.85rem;
+  transition: opacity 0.3s;
+}
+
+.save-inline-msg .save-ok {
+  color: #155724;
+  font-weight: 500;
+}
+
+.save-inline-msg .save-err {
+  color: #721c24;
+  font-weight: 500;
+}
+
+.btn-save-all {
+  display: block;
+  background: #1e3a5f;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.85rem 2.5rem;
+  font-size: 1.05rem;
+  font-weight: 500;
+  cursor: pointer;
+  margin: 1.5rem 0;
+}
+
+.btn-save-all:hover {
+  background: #2a5080;
+}
+
+/* Popup-Formular (natives <dialog>, UMBAU-D3): mittig, begrenzte Breite,
+ * abgedunkelter Hintergrund via ::backdrop. */
+dialog#agent-dialog {
+  max-width: 640px;
+  width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 1.5rem;
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+dialog#agent-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+#agent-dialog-close {
+  display: block;
+  margin: 0 0 1rem auto;
+  background: #6c757d;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+#agent-dialog-close:hover {
+  background: #545b62;
+}
+
+/* Umbenennen-/Löschen-Aufklapper im Bearbeiten-Popup: <summary> braucht den
+ * Zeigefinger. Die frühere Regel .agent-picker details summary entfiel mit dem
+ * Tabellen-Umbau, weil diese Blöcke jetzt im Dialog (#agent-dialog-body) liegen. */
+#agent-dialog-body details summary {
+  cursor: pointer;
+}
+
+/* Verwaltungs-Aufklapper (Umbenennen / Löschen) unter dem Speichern-Button:
+ * einheitlich abgesetzt, damit sie als eigene Sektionen lesbar sind statt
+ * direkt am großen Speichern-Button zu kleben. */
+.agent-manage-details {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.agent-manage-details > summary {
+  font-weight: 500;
+  color: #1e3a5f;
+  padding: 0.25rem 0;
+}
+
+.agent-delete-details > summary {
+  color: #dc3545;
+}
+
+/* Umbenennen-Formular: Feld + kompakter Button in einer Zeile statt eines
+ * überdimensionierten Block-Buttons (der generische button[type=submit]-Stil
+ * wirkte hier fehl am Platz — Inkonsistenz zu den Löschen-Buttons). */
+.agent-rename-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.agent-rename-form label {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.agent-rename-form input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ID-Präfix, damit dieser kompakte Stil den generischen
+ * button[type="submit"] (0,1,1) sicher schlägt. */
+#agent-dialog-body button.btn-rename {
+  display: inline-block;
+  margin: 0;
+  background: #6c757d;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+#agent-dialog-body button.btn-rename:hover {
+  background: #545b62;
+}
+
+/* Ja/Nein-Bestätigung beim Agenten-Löschen */
+.delete-confirm-frage {
+  margin: 0.5rem 0 0.25rem;
+  font-weight: 600;
+}
+
+.delete-confirm-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+/* im Aktions-Row keine Einzel-Margins (btn-danger bringt sonst margin-top mit
+ * -> vertikaler Versatz zum „Nein"-Button) */
+.delete-confirm-actions .btn-danger,
+.delete-confirm-actions .btn-cancel {
+  margin: 0;
+}
+
+.btn-cancel {
+  background: #6c757d;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  /* gleiche Maße wie .btn-danger, damit „Ja, löschen"/„Nein" bündig sind */
+  padding: 0.6rem 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-cancel:hover {
+  background: #545b62;
+}
+
+/* Agenten-Name als Bearbeiten-Trigger (link-artig statt Button-Optik) */
+.agent-edit-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #1e3a5f;
+  text-decoration: underline;
+  font-size: inherit;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.agent-edit-link:hover {
+  color: #2a5080;
+}
+
+/* „+ Neuer Agent"-Button ueber der Agenten-Tabelle */
+#btn-new-agent {
+  background: #1e3a5f;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  margin-bottom: 1rem;
+}
+
+#btn-new-agent:hover {
+  background: #2a5080;
+}
+
+/* Radio-Spalte (Chat-Auswahl): schmal + zentriert */
+.agent-status-table th:first-child,
+.agent-status-table td:first-child {
+  width: 2.5rem;
+  text-align: center;
+}
+
+.agent-status-table td:first-child input[type="radio"] {
+  margin: 0;
+}

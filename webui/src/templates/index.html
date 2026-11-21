@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+
+{% block header_nav %}
+<div class="header-bar">
+  <div class="header-bar-left">
+    <form action="/logout" method="post" class="logout-form">
+      <button type="submit" class="btn-header">Abmelden</button>
+    </form>
+    <button type="button" class="btn-header" id="btn-change-password"
+            hx-get="/password" hx-target="#agent-dialog-body" hx-swap="innerHTML">Passwort ändern</button>
+  </div>
+
+  <div class="header-bar-center">
+    {# Autostart-Umschalter (ehem. Übersicht) — Hinweis als Hover-Tooltip.
+       Speichert sofort per fetch an /save (saveAutostart unten); unchecked sendet
+       explizit 'false', damit Ausschalten zuverlässig greift. #}
+    <label class="autostart-toggle"
+           title="Erfordert einmaliges 'sudo ./install-autostart.sh enable' auf dem Host (siehe RUNBOOK)">
+      <input type="checkbox" name="autostart_enabled" value="true"
+             {% if autostart_enabled %}checked{% endif %} onchange="saveAutostart(this)">
+      Autostart
+    </label>
+  </div>
+
+  <div class="header-bar-right">
+    {# DE/EN-Sprachschalter — vorerst nur platziert (Funktion folgt in eigenem Task). #}
+    <div class="lang-switch" role="group" aria-label="Sprache (Umschaltung folgt)">
+      <button type="button" class="lang-opt is-active" aria-pressed="true" disabled>DE</button>
+      <button type="button" class="lang-opt" aria-pressed="false" disabled title="Englisch folgt">EN</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+{% if saved %}
+<div class="banner-success">&#10003; Änderungen gespeichert.</div>
+{% endif %}
+
+{% if reset %}
+<div class="banner-success">&#10003; Zero-Reset ausgeführt. Alle Daten gelöscht — bereit für frisches Setup.</div>
+{% endif %}
+
+{% if error %}
+<div class="banner-error">&#9888; {{ error }}</div>
+{% endif %}
+
+{% include "_status_card.html" %}
+
+<dialog id="agent-dialog">
+  <button type="button" id="agent-dialog-close">Schließen</button>
+  <div id="agent-dialog-body"></div>
+</dialog>
+
+{% if agent_id %}
+<link rel="stylesheet" href="/static/chat.css">
+<section class="chat-section" id="sec-chat">
+  <h2>Agenten-Chat</h2>
+  <p class="hint">Chatte mit dem KI-Assistenten dieses Agenten — kennt context.md, style.md und den Agent-Status. Kann auf deine Anweisung dein Postfach durchsuchen, Entwürfe anlegen/bearbeiten, Mails in den Papierkorb verschieben und auf deine Anweisung den Papierkorb endgültig leeren (nie senden).</p>
+  <div id="chat-panel">{% include "_chat.html" %}</div>
+</section>
+<script src="/static/chat.js"></script>
+{% endif %}
+
+<script>
+/* Seitenweite Helfer fuer das Popup-Formular (_agent_form.html, per HTMX lazy
+ * geladen — UMBAU-D3). agent_id wird NICHT mehr per Jinja interpoliert (das
+ * Formular kann jederzeit fuer einen ANDEREN Agenten neu geladen werden, ohne
+ * dass die Seite neu rendert) — stattdessen zur Laufzeit aus dem im Dialog
+ * liegenden versteckten Feld #active-agent-id gelesen. */
+function detectProvider(key) {
+  const k = (key || '').trim();
+  if (!k) return null;
+  if (k.startsWith('sk-ant-')) return 'anthropic';
+  if (k.startsWith('AIza')) return 'google';
+  if (k.startsWith('sk-')) return 'openai';
+  return 'unknown';
+}
+function updateProviderHint(value) {
+  const provider = detectProvider(value);
+  const hintEl = document.getElementById('provider-detected');
+  const labels = {anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google'};
+  if (!value) {
+    hintEl.textContent = 'Noch kein Key gespeichert';
+  } else if (provider === 'unknown') {
+    hintEl.textContent = 'Format nicht erkannt';
+  } else {
+    hintEl.textContent = 'Erkannter LLM-Provider: ' + labels[provider];
+  }
+  ['anthropic', 'openai', 'google'].forEach(function (p) {
+    const el = document.getElementById('avv-' + p);
+    if (el) { el.style.display = (p === provider) ? 'block' : 'none'; }
+  });
+}
+
+async function generateContext(btn) {
+  const descField = document.getElementById('firma_input');
+  const target = document.getElementById('context_md');
+  const hint = document.getElementById('ki-hint');
+  const desc = descField.value.trim();
+  if (!desc) { alert('Bitte erst eine Kurzbeschreibung eintragen.'); return; }
+  if (target.value.trim() && !confirm('Aktuellen context.md-Inhalt überschreiben?')) return;
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = '⏳ Generiere (~10s)…';
+  try {
+    const fd = new FormData();
+    fd.append('firma_input', desc);
+    fd.append('agent_id', document.getElementById('active-agent-id').value);
+    const res = await fetch('/context/generate', {method: 'POST', body: fd});
+    if (!res.ok) {
+      const err = await res.text();
+      alert('Fehler ' + res.status + ':\n' + err);
+      return;
+    }
+    target.value = await res.text();
+    hint.style.display = 'block';
+  } catch (e) {
+    alert('Netzwerkfehler: ' + e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+async function relearnStyle(btn) {
+  if (!confirm('Bestehendes Stil-Profil überschreiben und aus den aktuellen gesendeten Mails neu lernen?')) return;
+  const target = document.getElementById('style_md');
+  const noteField = document.getElementById('style_note');
+  const hint = document.getElementById('style-relearn-hint');
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = '⏳ Lerne Stil (~30–60s)…';
+  try {
+    const fd = new FormData();
+    fd.append('agent_id', document.getElementById('active-agent-id').value);
+    fd.append('style_note', noteField.value);
+    const res = await fetch('/style/relearn', {method: 'POST', body: fd});
+    if (!res.ok) {
+      const err = await res.text();
+      alert('Fehler ' + res.status + ':\n' + err);
+      return;
+    }
+    target.value = await res.text();
+    hint.style.display = 'block';
+  } catch (e) {
+    alert('Netzwerkfehler: ' + e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+/* „Verbindung testen"-Buttons im Agent-Formular (Betreiber-Wunsch): prueft IMAP
+ * bzw. LLM-API live gegen den echten Dienst, OHNE zu speichern. Nutzt serverseitig
+ * exakt dieselbe Probe wie /save (validate_conn). Leer gelassenes Passwort-/Key-Feld
+ * -> es wird der bereits gespeicherte Wert getestet. Ergebnis als kurze farbige
+ * Meldung direkt unterm Feld; ist das Meldungs-Element nicht da, per alert(). */
+async function testConnection(target, btn) {
+  const resultEl = document.getElementById(target === 'imap' ? 'imap-test-result' : 'llm-test-result');
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ Teste (~bis 15s)…';
+  if (resultEl) { resultEl.textContent = ''; resultEl.className = 'test-result'; }
+  try {
+    const fd = new FormData();
+    fd.append('target', target);
+    fd.append('agent_id', document.getElementById('active-agent-id').value);
+    // Aktuell eingetippte Werte mitgeben (leer = bereits gespeicherten Wert testen).
+    const userEl = document.getElementById('imap_user');
+    const pwEl = document.getElementById('imap_password');
+    const keyEl = document.getElementById('llm_api_key');
+    if (userEl) fd.append('imap_user', userEl.value);
+    if (pwEl) fd.append('imap_password', pwEl.value);
+    if (keyEl) fd.append('llm_api_key', keyEl.value);
+    const res = await fetch('/test-connection', {method: 'POST', body: fd});
+    const msg = await res.text();
+    if (resultEl) {
+      resultEl.textContent = (res.ok ? '✓ ' : '⚠ ') + msg;
+      resultEl.className = 'test-result ' + (res.ok ? 'test-ok' : 'test-fail');
+    } else {
+      alert(msg);
+    }
+  } catch (e) {
+    if (resultEl) {
+      resultEl.textContent = '⚠ Netzwerkfehler: ' + e;
+      resultEl.className = 'test-result test-fail';
+    } else {
+      alert('Netzwerkfehler: ' + e);
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+/* Zero-Reset (Danger Zone): roter „ALLES LÖSCHEN"-Button -> Ja/Nein-Rückfrage ->
+ * WebUI-Admin-Passwort -> erst dann POST /reset. Das Passwort wird serverseitig
+ * geprüft (auth.verify_password); ohne korrektes Passwort löscht der Endpoint
+ * nichts. Ersetzt das frühere „LÖSCHEN"-Eintippen im Aufklapper. */
+function confirmReset() {
+  if (!confirm('Sind Sie sicher, dass Sie ALLES löschen wollen?\n\nAlle Agenten, verarbeitete Mails und der Verschlüsselungs-Key werden unwiderruflich gelöscht.')) return;
+  const pw = prompt('Zur Bestätigung das WebUI-Admin-Passwort eingeben:');
+  if (!pw) return;
+  document.getElementById('reset-password').value = pw;
+  document.getElementById('reset-form').submit();
+}
+
+/* Autostart-Umschalter in der Agenten-Uebersicht (_status_card.html). Speichert
+ * bei jeder Aenderung sofort per fetch an /save. Der Wert wird IMMER explizit
+ * mitgegeben ('true'/'false') — eine unchecked Checkbox wuerde sonst gar nichts
+ * senden, sodass sich Autostart nicht mehr ausschalten liesse. Bei Fehler wird
+ * der Haken visuell zurueckgesetzt, damit UI und persistierter Zustand nicht
+ * auseinanderlaufen. Die Funktion lebt hier (ausserhalb #status-card), damit sie
+ * den 30s-outerHTML-Swap ueberlebt; das onchange-Attribut selbst kommt mit dem
+ * frisch eingefuegten Card-Markup wieder mit. */
+async function saveAutostart(cb) {
+  const desired = cb.checked;
+  try {
+    const fd = new FormData();
+    fd.append('autostart_enabled', desired ? 'true' : 'false');
+    const res = await fetch('/save', {method: 'POST', body: fd});
+    if (!res.ok) {
+      alert('Autostart konnte nicht gespeichert werden (Fehler ' + res.status + ').');
+      cb.checked = !desired;
+    }
+  } catch (e) {
+    alert('Netzwerkfehler beim Speichern von Autostart: ' + e);
+    cb.checked = !desired;
+  }
+}
+
+/* Chat-Auswahl-Erhalt ueber den 30s-Status-Refresh (UMBAU-D2): der Refresh
+ * tauscht NUR #status-card (outerHTML) — #chat-panel bleibt dabei unberuehrt,
+ * der Chat selbst laeuft also ohnehin unbeeinflusst weiter. Die frisch
+ * eingefuegte Tabelle bringt aber KEINE serverseitige Kenntnis der aktuellen
+ * Auswahl mit (GET /agents/status kennt keinen agent_id) — daher wird die
+ * zuletzt gewaehlte Agent-ID hier clientseitig gefuehrt und nach jedem
+ * #status-card-Swap re-appliziert (nur `.checked` setzen, KEIN `change`-Event
+ * -> kein erneuter Chat-Swap durch den Refresh selbst). */
+window.vizpatchSelectedAgent = "{{ agent_id }}";
+
+document.body.addEventListener('change', function (evt) {
+  if (evt.target && evt.target.matches && evt.target.matches('input[name="chat-agent"]')) {
+    window.vizpatchSelectedAgent = evt.target.value;
+  }
+});
+
+/* Modal-Steuerung (UMBAU-D3) + Auswahl-Erhalt (UMBAU-D2) in EINEM
+ * htmx:afterSwap-Listener — unterscheidet anhand der Swap-Ziel-ID:
+ * - #agent-dialog-body (Bearbeiten- oder Neuer-Agent-Popup) -> Dialog oeffnen.
+ * - #status-card (30s-Refresh ODER Start/Stop-Aktion) -> das Radio der
+ *   zuletzt gewaehlten Agent-ID re-checken (rein visuell, kein Chat-Swap). */
+document.body.addEventListener('htmx:afterSwap', function (evt) {
+  const targetId = evt.detail.target && evt.detail.target.id;
+  if (targetId === 'agent-dialog-body') {
+    document.getElementById('agent-dialog').showModal();
+  } else if (targetId === 'status-card') {
+    const radio = document.querySelector(
+      'input[name="chat-agent"][value="' + window.vizpatchSelectedAgent + '"]'
+    );
+    if (radio) { radio.checked = true; }
+  }
+});
+document.getElementById('agent-dialog-close').addEventListener('click', function () {
+  document.getElementById('agent-dialog').close();
+});
+
+/* Klick auf den Backdrop (ausserhalb des Dialoginhalts) schliesst das Popup =
+ * Abbrechen. Es wird nichts gespeichert — Speichern passiert ausschliesslich ueber
+ * den Button im Formular. Ein natives <dialog> schliesst bei Backdrop-Klick NICHT
+ * von selbst: der Klick landet auf dem <dialog>-Element (target === dlg); liegen
+ * die Klick-Koordinaten ausserhalb der Dialog-Flaeche, war es der Backdrop. Der
+ * Bounding-Rect-Check verhindert faelschliches Schliessen beim Klick auf das
+ * eigene Padding des Dialogs. */
+document.getElementById('agent-dialog').addEventListener('click', function (evt) {
+  const dlg = evt.currentTarget;
+  if (evt.target !== dlg) { return; }
+  const r = dlg.getBoundingClientRect();
+  const inside = evt.clientX >= r.left && evt.clientX <= r.right
+              && evt.clientY >= r.top && evt.clientY <= r.bottom;
+  if (!inside) { dlg.close(); }
+});
+
+/* Passwort-Aenderung (260722-jrq): POST /password liefert bei Erfolg den
+ * HX-Trigger-Header `vizpatch-password-changed` (statt das ganze Formular
+ * neu zu rendern, siehe _password_form.html) — dieser globale Listener
+ * schliesst darauf den bestehenden #agent-dialog. */
+document.body.addEventListener('vizpatch-password-changed', function () {
+  document.getElementById('agent-dialog').close();
+});
+</script>
+
+<section class="danger-zone">
+  <h2>&#9888; Danger Zone — Zero-Reset</h2>
+  <p>Löscht ALLE Agenten (Konfiguration + verarbeitete E-Mails), den Verschlüsselungs-Key und stoppt/entfernt den Agent-Container. WebUI läuft weiter, ist danach wieder im Erst-Setup-Zustand (kein Login, keine Agenten). <strong>Nicht rückgängig zu machen.</strong></p>
+
+  <form action="/reset" method="post" id="reset-form">
+    <input type="hidden" name="password" id="reset-password">
+    <button type="button" class="btn-danger" onclick="confirmReset()">ALLES LÖSCHEN</button>
+  </form>
+</section>
+{% endblock %}

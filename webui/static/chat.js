@@ -1,0 +1,430 @@
+/* Vanilla-JS-SSE-Client für den Agenten-Chat (D-62).
+ * Keine externe Lib (D-61) — fetch() + ReadableStream, lokal eingebunden wie htmx.min.js.
+ *
+ * Verlauf (Quick 260812-hhm, Task 4, D-hhm-10): lebt SERVERSEITIG in einer
+ * webui-eigenen SQLite-DB, Schlüssel (agent_id, session_id), 30-Tage-Retention.
+ * Im `localStorage` liegt AUSSCHLIESSLICH die opake `session_id` — NIEMALS
+ * Mailinhalte, Betreffs oder Adressen (die alte Aussage "kein localStorage"
+ * hier waere sonst eine Luege im Code geworden). Beim Init wird der Verlauf
+ * ueber GET /chat/{agentId}/history nachgeladen, damit der Betreiber nach
+ * einem Reload sein Gespraech weiter sieht UND der Agent den Kontext kennt.
+ * Reset-Button loescht zuerst serverseitig (POST .../history/reset), dann
+ * lokal (neue sessionId + leerer #chat-log).
+ *
+ * sessionId (Session-Autorisierung Papierkorb-Werkzeuge, Betreiber-Entscheidung):
+ * einmal pro Chat-Sitzung erzeugt, bei jedem Send mitgeschickt. Das Backend
+ * verlangt die explizite Zwei-Schritt-Bestätigung nur für die ERSTE Verschiebung
+ * in den Papierkorb je sessionId — danach laufen weitere Verschiebungen
+ * DERSELBEN Sitzung ohne erneute Rückfrage. `resetHistory()` erzeugt eine NEUE
+ * sessionId (Reset = neue Sitzung = wieder eine Erst-Bestätigung nötig).
+ *
+ * mail_context (D-65/D-69, Phase 8 — Outlook-Add-in): window.vizpatchGetMailContext
+ * ist der Hook, den sendMessage() abfragt. Dieses Skript läuft IM Embed-iframe
+ * (same-origin, D-66) und empfängt die gerade geöffnete Mail per postMessage von
+ * der Taskpane (webui/static/addin/taskpane.js). Der message-Listener prüft
+ * event.origin (T-08-04, Spoofing-Schutz) — Nachrichten von fremden Origins
+ * werden verworfen. Ohne Add-in (reiner Browser-Chat, Phase 7) läuft nie eine
+ * passende Nachricht ein, der Hook liefert dann weiterhin null.
+ *
+ * Re-Initialisierbarkeit (UMBAU-D2, Plan 260722-h9e/3): `window.initVizpatchChat`
+ * ersetzt die alte selbstausfuehrende IIFE — die Radio-Auswahl in der Agenten-
+ * Tabelle swappt #chat-panel per HTMX gegen einen frischen `#chat-root` fuer den
+ * gewaehlten Agenten (`_chat_panel.html` ruft `initVizpatchChat()` danach erneut
+ * auf). Jeder Aufruf startet mit frischem Zustand (history/sessionId/
+ * pendingAttachment/lastMailContext) — gewollt beim Agent-Wechsel, die alten
+ * Element-Listener verschwinden mit dem ersetzten DOM-Inhalt (kein Doppel-
+ * Binding). Ohne `#chat-root` auf der Seite (z. B. Anlege-Modus ohne Agent)
+ * kehrt die Funktion idempotent sofort zurueck. */
+window.initVizpatchChat = function () {
+  const root = document.getElementById('chat-root');
+  if (!root) return;
+
+  const agentId = root.dataset.agentId;
+  const log = document.getElementById('chat-log');
+  const form = document.getElementById('chat-form');
+  const input = document.getElementById('chat-input');
+  const sendBtn = document.getElementById('chat-send-btn');
+  const resetBtn = document.getElementById('chat-reset-btn');
+  const fileInput = document.getElementById('chat-file-input');
+
+  /* Anhang-Widget (ATT-03, Plan 12-03): Datei wird SOFORT bei Auswahl an
+   * /chat/{agentId}/upload gestreamt (server-seitiger Pending-Upload-Store,
+   * 12-01/12-02) — der Dateiinhalt selbst verlaesst den Browser sofort und
+   * wird NIE in `history`/localStorage gehalten (T-12-11). Nur die vom Server
+   * zurueckgegebenen Metadaten (Dateiname/Groesse/Typ) werden hier gemerkt und
+   * dem naechsten sendMessage()-Aufruf als `attachment_meta` mitgegeben. */
+  let pendingAttachment = null;
+
+  function addUploadStatus(text) {
+    const statusLine = document.createElement('div');
+    statusLine.className = 'chat-upload-status';
+    statusLine.textContent = text;
+    log.appendChild(statusLine);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  if (fileInput) {
+    fileInput.addEventListener('change', async function () {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('session_id', sessionId);
+
+      try {
+        const res = await fetch('/chat/' + agentId + '/upload', { method: 'POST', body: fd });
+        if (!res.ok) {
+          const errText = await res.text();
+          addUploadStatus('Anhang abgelehnt (' + res.status + '): ' + errText);
+          return;
+        }
+        const data = await res.json();
+        pendingAttachment = { dateiname: data.dateiname, groesse: data.groesse, mimetyp: data.mimetyp };
+        addUploadStatus('Anhang bereit: ' + data.dateiname);
+      } catch (e) {
+        addUploadStatus('Netzwerkfehler beim Hochladen: ' + e);
+      } finally {
+        /* Denselben Dateinamen erneut hochladbar machen (change-Event feuert
+         * sonst beim zweiten Auswaehlen derselben Datei nicht erneut). */
+        fileInput.value = '';
+      }
+    });
+  }
+
+  /** Zuletzt per postMessage empfangene Mail (D-69) — Default null (kein
+   * Mail-Kontext), z. B. solange kein Add-in eingebettet ist oder noch keine
+   * Nachricht empfangen wurde. */
+  let lastMailContext = null;
+
+  window.addEventListener('message', function (event) {
+    // T-08-04: nur same-origin-Nachrichten akzeptieren — die Taskpane postet
+    // ausschließlich mit targetOrigin = window.location.origin, ein fremdes
+    // Fenster könnte sonst gefälschten Mail-Kontext einschleusen.
+    if (event.origin !== window.location.origin) {
+      return;
+    }
+    const data = event.data;
+    if (!data || data.type !== 'vizpatch-mail-context') {
+      return;
+    }
+    lastMailContext = {
+      subject: data.subject || '',
+      sender: data.sender || '',
+      body: data.body || '',
+    };
+  });
+
+  window.vizpatchGetMailContext = function () {
+    return lastMailContext;
+  };
+
+  function generateSessionId() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+      return window.crypto.randomUUID();
+    }
+    // Fallback fuer Browser ohne crypto.randomUUID — kein Sicherheits-Token,
+    // nur eine Sitzungs-Kennung; das Backend bindet die eigentliche
+    // Autorisierung an einen serverseitigen HMAC ueber diese Kennung.
+    return 'sess-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+  }
+
+  /* sessionId (Quick 260812-hhm, Task 4): AUSSCHLIESSLICH die opake Kennung
+   * liegt im localStorage (D-hhm-10) — nie Mailinhalte. Alle Zugriffe in
+   * try/catch: Privatmodus/blockierter Storage darf den Chat nicht abstuerzen
+   * lassen, sondern faellt auf eine reine In-Memory-Session zurueck. */
+  const sessionKey = 'vizpatch-chat-session-' + agentId;
+  let sessionId;
+  try {
+    sessionId = localStorage.getItem(sessionKey) || '';
+  } catch (e) {
+    sessionId = '';
+  }
+  if (!sessionId) {
+    sessionId = generateSessionId();
+    try {
+      localStorage.setItem(sessionKey, sessionId);
+    } catch (e) {
+      /* Storage nicht verfuegbar -- sessionId bleibt rein In-Memory. */
+    }
+  }
+
+  let history = [];
+
+  /* Verlauf beim Init nachladen (Task 4): nach einem Reload sieht der
+   * Betreiber sein Gespraech weiter, und der Agent kennt uids/Ordner/
+   * Betreffs aus vorherigen Zuegen. Fehler still ignorieren (leerer Chat wie
+   * bisher) -- kein Nutzer-sichtbarer Fehler fuer eine reine Komfortfunktion. */
+  (async function loadHistoryOnInit() {
+    try {
+      const res = await fetch('/chat/' + agentId + '/history?session_id=' + encodeURIComponent(sessionId));
+      if (!res.ok) return;
+      const data = await res.json();
+      const turns = (data && data.turns) || [];
+      for (const turn of turns) {
+        const role = turn.role === 'assistant' ? 'assistant' : 'user';
+        addBubble(role).textContent = turn.content;
+        history.push({ role: role, content: turn.content });
+      }
+    } catch (e) {
+      /* Netzwerkfehler/kaputtes JSON -- leerer Chat wie bisher, kein Absturz. */
+    }
+  })();
+
+  async function resetHistory() {
+    /* Zuerst serverseitig loeschen (ALTE sessionId) -- danach erst eine neue
+     * sessionId erzeugen, sonst waere die zu loeschende Sitzung nicht mehr
+     * bekannt. Ein Fehlschlag hier blockiert den lokalen Reset nicht (der
+     * Betreiber soll den Chat immer leeren koennen, auch bei DB-Problemen). */
+    try {
+      const fd = new FormData();
+      fd.append('session_id', sessionId);
+      await fetch('/chat/' + agentId + '/history/reset', { method: 'POST', body: fd });
+    } catch (e) {
+      /* fail-soft -- lokaler Reset laeuft trotzdem weiter. */
+    }
+    sessionId = generateSessionId();
+    try {
+      localStorage.setItem(sessionKey, sessionId);
+    } catch (e) {
+      /* Storage nicht verfuegbar -- sessionId bleibt rein In-Memory. */
+    }
+    history = [];
+    pendingAttachment = null;
+    log.innerHTML = '';
+  }
+
+  if (resetBtn) {
+    resetBtn.addEventListener('click', resetHistory);
+  }
+
+  /* "Add-in herunterladen": laedt den Outlook-Add-in-Installer als ZIP
+   * (das komplette addin-publish/-Bundle — ClickOnce braucht den ganzen Ordner).
+   * Ist auf diesem Server kein Bundle hinterlegt (z. B. lokale Test-Instanz),
+   * antwortet der Endpoint mit 404 -> wir zeigen eine kurze Meldung statt eines
+   * kaputten Downloads. Sonst per Blob speichern (Content-Disposition gibt den
+   * Dateinamen vor). */
+  const connectBtn = document.getElementById('chat-connect-btn');
+  if (connectBtn) {
+    connectBtn.addEventListener('click', async function () {
+      const original = connectBtn.textContent;
+      connectBtn.disabled = true;
+      try {
+        const res = await fetch('/addin-installer');
+        if (!res.ok) {
+          alert('Add-in-Installer ist auf diesem Server nicht hinterlegt (Fehler ' + res.status + ').');
+          return;
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'vizpatch-addin-installer.zip';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        alert('Download fehlgeschlagen: ' + e);
+      } finally {
+        connectBtn.disabled = false;
+        connectBtn.textContent = original;
+      }
+    });
+  }
+
+  function addBubble(role) {
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble chat-bubble-' + role;
+    log.appendChild(bubble);
+    log.scrollTop = log.scrollHeight;
+    return bubble;
+  }
+
+  function parseSseBlock(block) {
+    /* Ein SSE-Event kann mehrere data:-Zeilen (eingebettete Newlines im
+     * Chunk) und optional eine event:-Zeile enthalten. */
+    const lines = block.split('\n');
+    let eventType = 'message';
+    const dataLines = [];
+    for (const line of lines) {
+      if (line.startsWith('event:')) {
+        eventType = line.slice('event:'.length).trim();
+      } else if (line.startsWith('data:')) {
+        dataLines.push(line.slice('data:'.length).replace(/^ /, ''));
+      }
+    }
+    return { eventType: eventType, data: dataLines.join('\n') };
+  }
+
+  async function sendMessage(message) {
+    sendBtn.disabled = true;
+    addBubble('user').textContent = message;
+    const assistantBubble = addBubble('assistant');
+
+    const fd = new FormData();
+    fd.append('message', message);
+    fd.append('history', JSON.stringify(history));
+    fd.append('session_id', sessionId);
+    /* Faehigkeits-Aushandlung (Quick 260813-wea): dieser Client KANN das
+     * SSE-Ereignis `event: bild` verarbeiten (siehe die eventType === 'bild'
+     * Auswertung weiter unten) -- ohne dieses Feld kaeme KEIN Bild-Ereignis,
+     * der Server liefert es nur an Clients, die die Faehigkeit ankuendigen. */
+    fd.append('client_features', 'bild');
+    const mailContext = window.vizpatchGetMailContext();
+    if (mailContext) {
+      fd.append('mail_context', JSON.stringify(mailContext));
+    }
+    /* Anhang-Metadaten (ATT-03, Plan 12-03): nur mitschicken, wenn ein Upload
+     * seit dem letzten Send noch nicht konsumiert wurde. Der serverseitige
+     * Pending-Upload ist einmal konsumierbar (12-01) — pendingAttachment wird
+     * daher NACH diesem Send unabhaengig vom Ausgang zurueckgesetzt (T-12-12:
+     * ein zweiter Send darf nie veraltete Metadaten eines bereits verbrauchten
+     * oder abgelaufenen Uploads mitschicken). */
+    const attachmentForThisSend = pendingAttachment;
+    if (attachmentForThisSend) {
+      fd.append('attachment_meta', JSON.stringify(attachmentForThisSend));
+    }
+
+    let assistantText = '';
+    let sawError = false;
+
+    try {
+      const res = await fetch('/chat/' + agentId + '/send', { method: 'POST', body: fd });
+      if (!res.ok) {
+        const errText = await res.text();
+        assistantBubble.textContent = 'Fehler ' + res.status + ': ' + errText;
+        return;
+      }
+      if (attachmentForThisSend) {
+        /* Der serverseitige Pending-Upload wird von diesem Turn konsumiert
+         * (oder war schon fuer diesen Turn bestimmt) — ein Folge-Send darf
+         * ihn nicht nochmal mitschicken. */
+        pendingAttachment = null;
+        addUploadStatus('Anhang gesendet: ' + attachmentForThisSend.dateiname);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, { stream: true });
+        let sepIndex;
+        while ((sepIndex = buffer.indexOf('\n\n')) !== -1) {
+          const block = buffer.slice(0, sepIndex);
+          buffer = buffer.slice(sepIndex + 2);
+          if (!block.trim()) continue;
+          const parsed = parseSseBlock(block);
+          if (parsed.eventType === 'error') {
+            assistantBubble.textContent += '\n[Fehler: ' + parsed.data + ']';
+            sawError = true;
+          } else if (parsed.eventType === 'done') {
+            /* Stream-Ende — nichts anzuhängen. */
+          } else if (parsed.eventType === 'tool') {
+            /* Dezente Tätigkeits-Zeile (z. B. "Mails suchen…") — das Label kommt
+             * bereits sprechend vom Server (kein "[Werkzeug]"-Präfix, kein Emoji,
+             * kein Funktionsname). VOR der Antwort-Blase eingefügt, damit die
+             * natürliche Reihenfolge (erst Tätigkeit, dann Antwort) erhalten bleibt. */
+            if (parsed.data) {
+              const toolLine = document.createElement('div');
+              toolLine.className = 'chat-tool-activity';
+              toolLine.textContent = parsed.data;
+              log.insertBefore(toolLine, assistantBubble);
+              log.scrollTop = log.scrollHeight;
+            }
+          } else if (parsed.eventType === 'bild') {
+            /* Bild-Vorschau (Quick 260813-wea): das Ereignis traegt NUR eine
+             * Referenz (ordner/uid/index/dateiname/typ/groesse), NIE Bilddaten
+             * -- die Bytes holt der Browser separat ueber GET .../anhang. Der
+             * Inhalt landet NICHT in assistantText/history (kein Verlaufs-
+             * Eintrag, keine Token-Schaetzung). Kaputtes JSON wird still
+             * verworfen (kein Absturz des Streams). */
+            let v;
+            try {
+              v = JSON.parse(parsed.data);
+            } catch (e) {
+              v = null;
+            }
+            if (v) {
+              const wrapper = document.createElement('div');
+              wrapper.className = 'chat-bild-vorschau';
+              const img = document.createElement('img');
+              img.src = '/chat/' + agentId + '/anhang'
+                + '?uid=' + encodeURIComponent(v.uid)
+                + '&ordner=' + encodeURIComponent(v.ordner)
+                + '&index=' + encodeURIComponent(v.index);
+              /* Dateiname ist Mailinhalt und damit UNTRUSTED -- ausschliesslich
+               * ueber textContent/alt setzen, NIE innerHTML (kein HTML aus dem
+               * Anhang-Namen interpretieren lassen). */
+              img.alt = v.dateiname || '';
+              img.onerror = function () {
+                /* Server hat 404/413/415 geliefert -- kein kaputtes Bild-Icon
+                 * im Chat stehen lassen. */
+                wrapper.style.display = 'none';
+              };
+              const caption = document.createElement('div');
+              caption.className = 'chat-bild-vorschau-caption';
+              caption.textContent = (v.dateiname || '') + (v.groesse ? ' (' + v.groesse + ' Bytes)' : '');
+              wrapper.appendChild(img);
+              wrapper.appendChild(caption);
+              log.insertBefore(wrapper, assistantBubble);
+              log.scrollTop = log.scrollHeight;
+            }
+          } else {
+            assistantText += parsed.data;
+            assistantBubble.textContent += parsed.data;
+          }
+          log.scrollTop = log.scrollHeight;
+        }
+      }
+      /* Verlauf (D-58) erst nach vollständiger Antwort anhängen — bei Fehler
+       * während des Streams bleibt der Verlauf konsistent mit dem, was der
+       * Assistent tatsächlich vollständig geantwortet hat. */
+      if (!sawError) {
+        history.push({ role: 'user', content: message });
+        history.push({ role: 'assistant', content: assistantText });
+      }
+    } catch (e) {
+      assistantBubble.textContent = 'Netzwerkfehler: ' + e;
+    } finally {
+      sendBtn.disabled = false;
+    }
+  }
+
+  /* Auto-Grow (Design-Feinschliff 2026-07-19): das Textfeld waechst beim Tippen
+   * bis zur CSS-max-height mit (danach scrollt es intern). resize ist im CSS
+   * deaktiviert — diese Logik ersetzt den manuellen Anfasser. */
+  function autoGrow() {
+    input.style.height = 'auto';
+    input.style.height = input.scrollHeight + 'px';
+  }
+
+  input.addEventListener('input', autoGrow);
+
+  /* Enter = senden, Shift+Enter = Zeilenumbruch (uebliches Chat-Verhalten;
+   * der Platzhaltertext im Feld kuendigt es an). */
+  input.addEventListener('keydown', function (event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      submitCurrentInput();
+    }
+  });
+
+  function submitCurrentInput() {
+    const message = input.value.trim();
+    if (!message || sendBtn.disabled) return;
+    input.value = '';
+    input.style.height = ''; /* Auto-Grow-Hoehe zuruecksetzen */
+    sendMessage(message);
+  }
+
+  form.addEventListener('submit', function (event) {
+    event.preventDefault();
+    submitCurrentInput();
+  });
+};
+
+document.addEventListener('DOMContentLoaded', function () {
+  window.initVizpatchChat();
+});

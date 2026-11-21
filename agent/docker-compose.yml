@@ -1,0 +1,102 @@
+services:
+  agent:
+    image: vizpatch:v1.0.0
+    build: .
+    container_name: vizpatch-agent
+    restart: unless-stopped
+    # Startet immer mit — wartet aber im Wait-for-Config-Loop bis /config/.env
+    # vollständig ist. Kein Crash, kein Restart-Loop bei leerer Zero-Config-Install.
+    #
+    # Zeitzone des Containers. Ohne sie laeuft er auf UTC — und die
+    # Urlaubs-Autoantwort entscheidet anhand des KALENDERTAGS, ob sie greift
+    # (URL-01..09). Bei UTC waere der letzte Urlaubstag in deutscher Ortszeit
+    # erst um 02:00 des Folgetags zu Ende; der Betreiber traegt aber deutsche
+    # Daten ein und erwartet, dass sie deutsch gelten. Die Zonendaten liegen im
+    # Image (/usr/share/zoneinfo), es braucht also kein zusaetzliches Paket.
+    # Wirkt erst beim NEUERSTELLEN des Containers, nicht beim blossen Neustart.
+    environment:
+      TZ: ${TZ:-Europe/Berlin}
+    volumes:
+      - ./config:/config:ro
+      - ./prompts:/app/prompts:ro
+      - agent-data:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  webui:
+    image: vizpatch-webui:v1.1.0
+    build: ../webui
+    container_name: vizpatch-webui
+    restart: unless-stopped
+    environment:
+      # Siehe Kommentar beim agent-Service: der Urlaubszeitraum wird nach
+      # KALENDERTAG geprueft, und die WebUI prueft ihn ein zweites Mal
+      # (urlaub_relay). Beide muessen denselben Tag meinen.
+      TZ: ${TZ:-Europe/Berlin}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      WEBUI_COMPOSE_DIR: /compose
+      CHAT_RATE_LIMIT_PER_MIN: ${CHAT_RATE_LIMIT_PER_MIN:-20}
+      CHAT_MAX_TOKENS: ${CHAT_MAX_TOKENS:-2000}
+      CHAT_HISTORY_TOKEN_BUDGET: ${CHAT_HISTORY_TOKEN_BUDGET:-40000}
+      MAX_ATTACHMENT_MB: ${MAX_ATTACHMENT_MB:-15}
+      # Chat-Werkzeug-Schalter. Leer = Code-Default (beide Flags AN). Sie wirken
+      # GLOBAL; ein Eintrag in der Agent-eigenen config/agents/<id>/.env gewinnt
+      # weiterhin (per-Agent vor global). Ohne diese Zeilen erreicht ein Wert aus
+      # der Installations-.env den Container gar nicht — genau die Falle, die bei
+      # CHAT_HISTORY_TOKEN_BUDGET schon einmal zugeschlagen hat.
+      ENABLE_FOLDER_DELETE: ${ENABLE_FOLDER_DELETE:-}
+      ENABLE_ATTACHMENT_VISION: ${ENABLE_ATTACHMENT_VISION:-}
+      MAX_VISION_MB: ${MAX_VISION_MB:-}
+      MAX_VISION_PDF_PAGES: ${MAX_VISION_PDF_PAGES:-}
+      # Befund Phase 13, Plan 13-01 (T-13-03): diese vier Flags fehlten bis
+      # hierher im Passthrough, obwohl der webui-Code sie per os.getenv liest
+      # (CLAUDE.md/13-PATTERNS.md Abschnitt 9) — ein vom Betreiber gesetzter
+      # globaler Wert erreichte den Container nie, der Code-Default griff
+      # stillschweigend. Leer = Code-Default; per-Agent-.env gewinnt weiterhin.
+      ENABLE_MAIL_SEND: ${ENABLE_MAIL_SEND:-}
+      ENABLE_CHAT_TOOLS: ${ENABLE_CHAT_TOOLS:-}
+      ENABLE_TRASH_CONFIRMATION: ${ENABLE_TRASH_CONFIRMATION:-}
+      ENABLE_TRASH_PURGE: ${ENABLE_TRASH_PURGE:-}
+      # Quick 260813-wea: Bild-Vorschau in der Chat-Pane. Leer = Code-Default
+      # (Flag AN, MAX_PREVIEW_MB=10) — Lehre aus v1.22.1 SOFORT in beide
+      # Compose-Dateien und kunde-env.example eingetragen.
+      ENABLE_BILD_VORSCHAU: ${ENABLE_BILD_VORSCHAU:-}
+      # Phase 13, Plan 13-09 (MBOX-15): Newsletter-Abmeldung tatsaechlich
+      # AUSLOESEN. Das reine NENNEN des Abmeldewegs haengt an keinem Flag.
+      # "false" schaltet nur das Ausloesen ab. Leer = Code-Default.
+      ENABLE_UNSUBSCRIBE: ${ENABLE_UNSUBSCRIBE:-}
+      MAX_PREVIEW_MB: ${MAX_PREVIEW_MB:-}
+      ADDIN_BASE_URL: ${ADDIN_BASE_URL:-}
+      ADDIN_FRAME_ANCESTORS: ${ADDIN_FRAME_ANCESTORS:-}
+      VIZPATCH_VERSION: ${VIZPATCH_VERSION:-}
+      VIZPATCH_VERSION_INDEX_URL: ${VIZPATCH_VERSION_INDEX_URL:-}
+      # Self-Update (260728-m8g, Stufe 2): Read-only-Zugang zum privaten
+      # Dist-Repo (Release-Assets, kein Quellcode). Der Sidecar (Task 2) laeuft
+      # bewusst NICHT als weiterer Compose-Service, sondern per `docker run` —
+      # sonst wuerde ein `compose up -d` mitten im Umschalten den Sidecar
+      # selbst abschiessen.
+      VIZPATCH_DIST_TOKEN: ${VIZPATCH_DIST_TOKEN:-}
+      VIZPATCH_DIST_REPO: ${VIZPATCH_DIST_REPO:-}
+    ports:
+      - "8080:8080"
+    # KEIN group_add fuer den Docker-Socket: der Container laeuft als root und
+    # darf den Socket ohnehin nutzen (CAP_DAC_OVERRIDE), egal welche Gruppe ihn
+    # auf dem Host besitzt. Siehe ausfuehrlichen Kommentar in
+    # deployment/docker-compose.phase4.yml. Bei Umstellung auf einen
+    # non-root-`user:` muss `group_add: ["${DOCKER_GID}"]` zurueck.
+    volumes:
+      - ./config:/config:rw
+      - .:/compose:ro
+      - agent-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  agent-data:

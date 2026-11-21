@@ -1,0 +1,24 @@
+# gitleaks-Konfiguration (Phase 16, PUB-01). Aufruf ausschliesslich ueber scripts/check-secrets.sh.
+#
+# Allowlist-Regel dieser Phase:
+#   Ausnahmen nur fuer einzelne, vom Betreiber in Plan 16-04 als Testattrappe oder
+#   Fehlalarm eingestufte Funde. Jede Ausnahme ist an genau einen Pfad UND einen
+#   Regex oder ein Stoppwort gebunden und traegt einen Kommentar (Grund, Datum,
+#   wer entschieden hat). Keine verzeichnisweiten Ausnahmen.
+#
+# Eingetragen: F1/F2 (Plan 16-04, Betreiber-Entscheidung P16-D07). F3 (Beispielaufruf in .planning)
+# und die Add-in-Schluesseldatei bekommen bewusst KEINE Ausnahme (nicht exportiert bzw. offener Posten).
+
+title = "vizpatch gitleaks"
+
+[extend]
+useDefault = true
+
+# F1/F2: Testattrappe. Formularwert "llm_api_key" in einem Endpoint-Test, kein echter Schluessel.
+# Grund: Test-Formularwert; Datum 2026-11-21; Betreiber 16-04 (P16-D07, vom Orchestrator an
+# der maskierten Zeile geprueft). Gebunden an genau einen Pfad UND den Wert.
+[[allowlists]]
+description = "Testattrappe: llm_api_key-Formularwert in webui/tests/test_endpoints_config.py (16-04, P16-D07)"
+condition = "AND"
+paths = ['''(^|/)webui/tests/test_endpoints_config\.py$''']
+regexes = ['''^sk-proj-abc123$''']

@@ -1,0 +1,3 @@
+# Nur CI-Werkzeuge. Dependabot (pip, Verzeichnis /) pflegt diese Datei.
+# Sie ist NICHT Teil der Kunden-Images (liegt ausserhalb der Build-Kontexte).
+ruff==0.17.4
